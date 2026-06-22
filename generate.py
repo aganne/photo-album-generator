@@ -224,7 +224,7 @@ def _build_photo_data(rel_path, photos_root, extra=None):
     return data if fp.exists() else None
 
 
-def arrange_pages(photo_files, recits=None):
+def arrange_pages(photo_files, recits=None, photos_root=None):
     """
     Organise les pages de l'album à partir des photos et récits.
 
@@ -239,8 +239,16 @@ def arrange_pages(photo_files, recits=None):
       - video_extrait : legacy — pellicule vidéo
       - video_54      : grille 5×4 style pellicule sombre
 
+    Args:
+        photo_files: liste de Paths vers les photos scannées
+        recits: liste de récits formatés (ou None pour mode auto)
+        photos_root: dossier racine pour résoudre les chemins relatifs
+                     des photos dans les récits (défaut: PHOTOS_DIR)
+
     Returns: liste de dicts représentant chaque page.
     """
+    if photos_root is None:
+        photos_root = PHOTOS_DIR
     pages = []
 
     # 1. Page de garde
@@ -253,7 +261,7 @@ def arrange_pages(photo_files, recits=None):
 
             if rtype == "heroique":
                 rel_path = entry.get("photo", "")
-                photo_data = _build_photo_data(rel_path, PHOTOS_DIR)
+                photo_data = _build_photo_data(rel_path, photos_root)
                 if photo_data:
                     pages.append({
                         "style": "heroique",
@@ -270,7 +278,7 @@ def arrange_pages(photo_files, recits=None):
             elif rtype == "duo":
                 photos = []
                 for rel_path in entry.get("photos", [])[:2]:
-                    pd = _build_photo_data(rel_path, PHOTOS_DIR)
+                    pd = _build_photo_data(rel_path, photos_root)
                     if pd:
                         photos.append(pd)
                 if photos:
@@ -286,7 +294,7 @@ def arrange_pages(photo_files, recits=None):
                 photos = []
                 for rel_path in entry.get("photos", []):
                     pd = _build_photo_data(
-                        rel_path, PHOTOS_DIR,
+                        rel_path, photos_root,
                         extra={"date": entry.get("date", "")}
                     )
                     if pd:
@@ -300,7 +308,7 @@ def arrange_pages(photo_files, recits=None):
             elif rtype == "collage":
                 photos = []
                 for rel_path in entry.get("photos", []):
-                    pd = _build_photo_data(rel_path, PHOTOS_DIR)
+                    pd = _build_photo_data(rel_path, photos_root)
                     if pd:
                         photos.append(pd)
                 if len(photos) >= 5:
@@ -320,7 +328,7 @@ def arrange_pages(photo_files, recits=None):
 
             elif rtype == "typographique":
                 rel_path = entry.get("photo", "")
-                photo_data = _build_photo_data(rel_path, PHOTOS_DIR) if rel_path else None
+                photo_data = _build_photo_data(rel_path, photos_root) if rel_path else None
                 pages.append({
                     "style": "typographique",
                     "data": {
@@ -336,7 +344,7 @@ def arrange_pages(photo_files, recits=None):
 
             elif rtype == "hero_texte":
                 rel_path = entry.get("photo", "")
-                photo_data = _build_photo_data(rel_path, PHOTOS_DIR)
+                photo_data = _build_photo_data(rel_path, photos_root)
                 if photo_data:
                     pages.append({
                         "style": "hero_texte",
@@ -353,7 +361,7 @@ def arrange_pages(photo_files, recits=None):
             elif rtype == "polaroid":
                 photos = []
                 for rel_path in entry.get("photos", []):
-                    pd = _build_photo_data(rel_path, PHOTOS_DIR)
+                    pd = _build_photo_data(rel_path, photos_root)
                     if pd:
                         photos.append(pd)
                 if photos:
@@ -375,7 +383,7 @@ def arrange_pages(photo_files, recits=None):
             elif rtype == "video_extrait":
                 frames = []
                 for rel_path in entry.get("frames", []):
-                    pd = _build_photo_data(rel_path, PHOTOS_DIR)
+                    pd = _build_photo_data(rel_path, photos_root)
                     if pd:
                         frames.append(pd)
                 if frames:
@@ -401,7 +409,7 @@ def arrange_pages(photo_files, recits=None):
                     print(f"  ⚠ video_54 entry has {len(raw_frames)} frames (expected 20) — skipping")
                     continue
                 for i, rel_path in enumerate(raw_frames):
-                    pd = _build_photo_data(rel_path, PHOTOS_DIR)
+                    pd = _build_photo_data(rel_path, photos_root)
                     if pd:
                         tc = timecodes[i] if i < len(timecodes) else ""
                         pd["timecode"] = tc
@@ -624,10 +632,20 @@ def main():
         photo_files = scan_photos()
 
     # Charger les récits
-    recits = load_recits(args.recits)
+    # Si --photos est spécifié sans --recits, on passe en mode auto
+    # (sinon les récits par défaut écrasent les photos de l'utilisateur)
+    if args.recits:
+        recits = load_recits(args.recits)
+    elif args.photos:
+        recits = None  # mode auto : arrange_pages utilise photo_files
+    else:
+        recits = load_recits()  # mode démo : récits par défaut
+
+    # Déterminer la racine des photos (utilisateur ou projet)
+    photos_root = Path(args.photos).resolve() if args.photos else PHOTOS_DIR
 
     # Organiser les pages
-    pages = arrange_pages(photo_files, recits)
+    pages = arrange_pages(photo_files, recits, photos_root=photos_root)
     print(f"📄 Pages à générer : {len(pages)}")
 
     # Checklist
