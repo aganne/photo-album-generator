@@ -1,0 +1,392 @@
+/* ── Album Mael 2012 — Palette Soleil ☀️ ──────────────────────── */
+/* WeasyPrint CSS — Print-oriented, no screen fallbacks needed     */
+
+@page {
+  size: 216.35mm 302.75mm;
+  margin: 0;
+  bleed: 3.175mm;
+  @top-left { content: none; }
+  @top-center { content: none; }
+  @top-right { content: none; }
+  @bottom-left { content: none; }
+  @bottom-center { content: none; }
+  @bottom-right { content: none; }
+}
+
+/* ── Base ───────────────────────────────────────────────────── */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+@page :first {
+  @bottom-center { content: none; }
+}
+
+html, body {
+  width: 216.35mm;
+  height: 302.75mm;
+  font-family: "Satoshi", "DejaVu Sans", sans-serif;
+  color: #3a2a1a;
+  background: #fefcf5;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.page {
+  position: relative;
+  width: 216.35mm;
+  height: 302.75mm;
+  overflow: hidden;
+  page-break-after: always;
+}
+
+/* ── Fond dégradé ──────────────────────────────────────────── */
+.page-bg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: linear-gradient(180deg, #fefcf5 0%, #f5ede0 50%, #e8cfa0 100%);
+  z-index: 0;
+}
+
+/* ── Bandes décoratives haut/bas ──────────────────────────── */
+.band-top {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 6mm;
+  background: linear-gradient(90deg, #8a6a3a, #c49a5a, #8a6a3a);
+  z-index: 2;
+}
+.band-bottom {
+  position: absolute;
+  bottom: 0; left: 0;
+  width: 100%; height: 6mm;
+  background: linear-gradient(90deg, #c49a5a, #8a6a3a, #c49a5a);
+  z-index: 2;
+}
+.band-bottom-thin {
+  position: absolute;
+  bottom: 7mm;
+  left: 12.7mm;
+  right: 12.7mm;
+  height: 0.5mm;
+  background: #d4b888;
+  z-index: 1;
+}
+
+/* ── Contenu principal (dans la marge de sécurité) ─────────── */
+.content {
+  position: relative;
+  z-index: 1;
+  padding: 18mm 12.7mm 18mm 12.7mm;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Numéro de page ────────────────────────────────────────── */
+.page-number {
+  position: absolute;
+  bottom: 8.5mm;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font-family: "Satoshi", sans-serif;
+  font-size: 7pt;
+  color: #8a6a3a;
+  z-index: 3;
+  letter-spacing: 1.5pt;
+}
+
+/* ── 1. GRILLE CLASSIQUE ──────────────────────────────────── */
+.grille-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3mm;
+  justify-content: center;
+  align-content: flex-start;
+  width: 100%;
+}
+.grille-item {
+  position: relative;
+  background: #ffffff;
+  padding: 2mm;
+  box-shadow: 0 0.3mm 0.8mm rgba(0,0,0,0.08);
+}
+.grille-item img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.grille-item .date-tag {
+  position: absolute;
+  bottom: 3mm;
+  right: 3mm;
+  background: rgba(196,154,90,0.85);
+  color: #fff;
+  font-family: "Satoshi", sans-serif;
+  font-size: 6.5pt;
+  padding: 0.5mm 1.5mm;
+  border-radius: 0.5mm;
+  letter-spacing: 0.3pt;
+}
+
+/* Layout variants for grille */
+.grille-3 .grille-item { width: calc(33.333% - 2mm); }
+.grille-4 .grille-item { width: calc(50% - 2mm); max-width: 45%; }
+.grille-6 .grille-item { width: calc(33.333% - 2mm); }
+
+/* ── 2. HERO + TEXTE ──────────────────────────────────────── */
+.hero-section {
+  width: 100%;
+  height: 55%;
+  overflow: hidden;
+}
+.hero-section img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hero-deco-line {
+  width: 60%;
+  height: 0.5mm;
+  background: #c49a5a;
+  margin: 4mm auto;
+}
+.hero-text {
+  padding: 0 5mm;
+  text-align: center;
+}
+.hero-text h2 {
+  font-family: "DM Serif Display", "DejaVu Serif", serif;
+  font-size: 16pt;
+  color: #3a2a1a;
+  margin-bottom: 2mm;
+  font-weight: 400;
+}
+.hero-text .date-line {
+  font-family: "Satoshi", sans-serif;
+  font-size: 8pt;
+  color: #8a6a3a;
+  letter-spacing: 1pt;
+  margin-bottom: 3mm;
+}
+.hero-text p {
+  font-family: "Satoshi", sans-serif;
+  font-size: 9.5pt;
+  color: #5a3a1a;
+  line-height: 1.6;
+  text-align: left;
+}
+
+/* ── 3. POLAROID ÉPARS ────────────────────────────────────── */
+.polaroid-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.polaroid-photo {
+  position: absolute;
+  background: #ffffff;
+  padding: 4mm 4mm 8mm 4mm;
+  box-shadow: 0 0.5mm 1.5mm rgba(0,0,0,0.12), 0 0.2mm 0.4mm rgba(0,0,0,0.08);
+  display: inline-block;
+}
+.polaroid-photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 70mm;
+  object-fit: cover;
+}
+
+/* Rotations individuelles appliquées en inline style */
+
+/* ── 4. EXTRAIT VIDÉO (pellicule) ─────────────────────────── */
+.video-extrait {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #1a1a1a;
+}
+.video-header {
+  position: absolute;
+  top: 15mm;
+  left: 12.7mm;
+  right: 12.7mm;
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+  z-index: 3;
+}
+.video-play-icon {
+  width: 8mm; height: 8mm;
+  background: #c49a5a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4mm;
+  color: #1a1a1a;
+  line-height: 1;
+}
+.video-header h3 {
+  font-family: "DM Serif Display", serif;
+  font-size: 11pt;
+  color: #e8cfa0;
+  font-weight: 400;
+  letter-spacing: 0.5pt;
+}
+
+/* Film strip frame */
+.film-strip {
+  position: absolute;
+  top: 28mm;
+  left: 12.7mm;
+  right: 12.7mm;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5mm;
+  z-index: 2;
+  padding: 3mm 1.5mm;
+  background: #1a1a1a;
+  border-top: 1.5mm solid #2a2a2a;
+  border-bottom: 1.5mm solid #2a2a2a;
+}
+
+/* Perforations haut */
+.film-strip::before {
+  content: "";
+  position: absolute;
+  top: -1mm;
+  left: 3mm;
+  right: 3mm;
+  height: 0.8mm;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 2.5mm,
+    #1a1a1a 2.5mm,
+    #1a1a1a 4.5mm
+  );
+}
+/* Perforations bas */
+.film-strip::after {
+  content: "";
+  position: absolute;
+  bottom: -1mm;
+  left: 3mm;
+  right: 3mm;
+  height: 0.8mm;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 2.5mm,
+    #1a1a1a 2.5mm,
+    #1a1a1a 4.5mm
+  );
+}
+
+.film-frame {
+  background: #000;
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  border: 0.3mm solid #333;
+}
+.film-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.video-timecode {
+  position: absolute;
+  bottom: 28mm;
+  right: 14mm;
+  font-family: monospace;
+  font-size: 7pt;
+  color: rgba(232,207,160,0.6);
+  z-index: 3;
+}
+
+.video-caption {
+  position: absolute;
+  bottom: 14mm;
+  left: 12.7mm;
+  right: 12.7mm;
+  text-align: center;
+  z-index: 3;
+}
+.video-caption .quote {
+  font-family: "DM Serif Display", serif;
+  font-size: 10pt;
+  font-style: italic;
+  color: #e8cfa0;
+  margin-bottom: 1.5mm;
+}
+.video-caption .meta {
+  font-family: "Satoshi", sans-serif;
+  font-size: 7pt;
+  color: #8a6a3a;
+  letter-spacing: 0.5pt;
+}
+
+/* ── PAGE DE GARDE ─────────────────────────────────────────── */
+.titre-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+}
+.titre-page h1 {
+  font-family: "DM Serif Display", serif;
+  font-size: 32pt;
+  color: #3a2a1a;
+  font-weight: 400;
+  letter-spacing: 1pt;
+  margin-bottom: 3mm;
+}
+.titre-page .souligne {
+  width: 40mm;
+  height: 0.5mm;
+  background: #c49a5a;
+  margin: 3mm auto;
+}
+.titre-page .subtitle {
+  font-family: "Satoshi", sans-serif;
+  font-size: 12pt;
+  color: #8a6a3a;
+  letter-spacing: 3pt;
+  text-transform: uppercase;
+  margin-bottom: 5mm;
+}
+.titre-page .author {
+  font-family: "Satoshi", sans-serif;
+  font-size: 9pt;
+  color: #5a3a1a;
+  letter-spacing: 1pt;
+}
+
+/* ── PAGE DE RENVOI / CREDITS ──────────────────────────────── */
+.credits-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 20mm;
+}
+.credits-page h2 {
+  font-family: "DM Serif Display", serif;
+  font-size: 18pt;
+  color: #3a2a1a;
+  margin-bottom: 4mm;
+}
+.credits-page p {
+  font-family: "Satoshi", sans-serif;
+  font-size: 9pt;
+  color: #5a3a1a;
+  line-height: 2;
+}

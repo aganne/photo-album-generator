@@ -1,0 +1,20 @@
+<!-- Page Grille classique -->
+<div class="page">
+  <div class="page-bg"></div>
+  <div class="band-top"></div>
+  <div class="band-bottom"></div>
+  <div class="band-bottom-thin"></div>
+  <div class="content">
+    <div class="grille-grid grille-{{ page.photos|length }}">
+      {% for photo in page.photos %}
+      <div class="grille-item">
+        <img src="{{ photo.path }}" alt="{{ photo.label }}">
+        {% if photo.date %}
+        <span class="date-tag">{{ photo.date }}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="page-number">— {{ page.page_num }} —</div>
+</div>

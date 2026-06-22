@@ -1,0 +1,29 @@
+<!-- Page Extrait vidéo (pellicule) -->
+<div class="page video-extrait">
+  <div class="band-top"></div>
+  <div class="band-bottom"></div>
+
+  <div class="video-header">
+  <div class="video-play-icon">▶</div>
+  <h3>{{ page.video.title }}</h3>
+  </div>
+
+  <div class="film-strip">
+  {% for frame in page.frames %}
+    <div class="film-frame">
+      <img src="{{ frame.path }}" alt="frame {{ loop.index }}">
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="video-timecode">{{ page.video.timecode }}</div>
+
+  <div class="video-caption">
+  {% if page.video.quote %}
+  <p class="quote">« {{ page.video.quote }} »</p>
+  {% endif %}
+  <p class="meta">{{ page.video.meta }}</p>
+  </div>
+
+  <div class="page-number" style="color: rgba(232,207,160,0.4);">— {{ page.page_num }} —</div>
+</div>

@@ -1,0 +1,18 @@
+<!-- Page Polaroid éparpillé -->
+<div class="page">
+  <div class="page-bg"></div>
+  <div class="band-top"></div>
+  <div class="band-bottom"></div>
+  <div class="band-bottom-thin"></div>
+  <div class="content">
+    <div class="polaroid-container">
+      {% for photo in page.photos %}
+      <div class="polaroid-photo"
+         style="top: {{ photo.top }}%; left: {{ photo.left }}%; width: {{ photo.width }}%; transform: rotate({{ photo.rotation }}deg); z-index: {{ photo.zindex }};">
+        <img src="{{ photo.path }}" alt="{{ photo.label }}">
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="page-number">— {{ page.page_num }} —</div>
+</div>
