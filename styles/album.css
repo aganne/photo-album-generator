@@ -71,7 +71,7 @@
 html, body {
   width: 216.35mm;
   height: 302.75mm;
-  font-family: "Satoshi", "DejaVu Sans", sans-serif;
+  font-family: "Satoshi", "DejaVu Sans", system-ui, sans-serif;
   color: #3a2a1a;
   background: #fefcf5;
   -webkit-print-color-adjust: exact;
@@ -524,6 +524,8 @@ html, body {
   background: #0d0d0d;
   border-top: 2mm solid #1a1a1a;
   border-bottom: 2mm solid #1a1a1a;
+  /* Garde-fou : ne pas déborder si plus de 20 frames sont injectées */
+  overflow: hidden;
 }
 
 /* Perforations style pellicule */

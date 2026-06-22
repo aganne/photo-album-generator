@@ -185,6 +185,8 @@ def group_photos_by_month(photo_files):
     ]
 
     for fp in sorted(photo_files, key=lambda p: str(p)):
+        if not fp.exists():
+            continue
         stem = fp.stem
         month_idx = None
 
@@ -509,7 +511,7 @@ def desaturate_photo(image_path, amount=10):
         img_desat.save(str(cache_path), "JPEG", quality=92)
 
         return str(cache_path)
-    except Exception as e:
+    except (OSError, IOError, ValueError, SyntaxError) as e:
         print(f"   ⚠️  Désaturation échouée pour {image_path}: {e}")
         return image_path
 

@@ -4,9 +4,11 @@
   <div class="band-top"></div>
   <div class="band-bottom"></div>
   <div class="content">
+    {% if page.photo %}
     <div class="hero-section">
       <img src="{{ page.photo.path }}" alt="{{ page.photo.label }}">
     </div>
+    {% endif %}
     <div class="hero-deco-line"></div>
     <div class="hero-text">
       <h2>{{ page.recit.title }}</h2>

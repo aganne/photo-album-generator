@@ -5,6 +5,7 @@
   <div class="band-bottom"></div>
   <div class="band-bottom-thin"></div>
   <div class="content">
+    {% if page.photos %}
     <div class="polaroid-container">
       {% for photo in page.photos %}
       <div class="polaroid-photo"
@@ -13,6 +14,9 @@
       </div>
       {% endfor %}
     </div>
+    {% else %}
+    <!-- Aucune photo pour cette page polaroid -->
+    {% endif %}
   </div>
   <div class="page-number">— {{ page.page_num }} —</div>
 </div>
