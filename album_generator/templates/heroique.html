@@ -1,7 +1,9 @@
 <!-- Page Héroïque — 1 photo pleine page, ouverture / moment fort -->
 <div class="page heroique-page">
   <div class="heroique-photo">
+    {% if page.photo %}
     <img src="{{ page.photo.path }}" alt="{{ page.photo.label }}">
+    {% endif %}
   </div>
   {% if page.recit and page.recit.title %}
   <div class="heroique-overlay">

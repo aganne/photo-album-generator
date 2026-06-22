@@ -148,12 +148,22 @@ def print_checklist(pages, photo_files):
 
 def _font_available(font_name):
     """Vérifie si une police est disponible (fichiers dans fonts/)."""
-    candidates = [
-        FONTS_DIR / f"{font_name.replace(' ', '')}-Regular.ttf",
-        FONTS_DIR / f"{font_name.replace(' ', '')}-Regular.woff2",
-        FONTS_DIR / f"{font_name.replace(' ', '')}.ttf",
+    base_name = font_name.replace(' ', '')
+    candidates_regular = [
+        FONTS_DIR / f"{base_name}-Regular.ttf",
+        FONTS_DIR / f"{base_name}-Regular.woff2",
+        FONTS_DIR / f"{base_name}.ttf",
     ]
-    return any(c.exists() for c in candidates)
+    has_regular = any(c.exists() for c in candidates_regular)
+    has_bold = any([
+        (FONTS_DIR / f"{base_name}-Bold.ttf").exists(),
+        (FONTS_DIR / f"{base_name}-Bold.woff2").exists(),
+    ])
+    has_italic = any([
+        (FONTS_DIR / f"{base_name}-Italic.ttf").exists(),
+        (FONTS_DIR / f"{base_name}-Italic.woff2").exists(),
+    ])
+    return has_regular and has_bold and has_italic
 
 
 def group_photos_by_month(photo_files):
@@ -187,7 +197,7 @@ def group_photos_by_month(photo_files):
                 mtime = os.path.getmtime(fp)
                 dt = datetime.fromtimestamp(mtime)
                 month_idx = dt.month - 1
-            except:
+            except OSError:
                 month_idx = None
 
         if month_idx is not None and 0 <= month_idx < 12:
@@ -242,17 +252,18 @@ def arrange_pages(photo_files, recits=None):
             if rtype == "heroique":
                 rel_path = entry.get("photo", "")
                 photo_data = _build_photo_data(rel_path, PHOTOS_DIR)
-                pages.append({
-                    "style": "heroique",
-                    "data": {
-                        "photo": photo_data,
-                        "recit": {
-                            "title": entry.get("title", ""),
-                            "date": entry.get("date", ""),
-                            "text": entry.get("text", ""),
+                if photo_data:
+                    pages.append({
+                        "style": "heroique",
+                        "data": {
+                            "photo": photo_data,
+                            "recit": {
+                                "title": entry.get("title", ""),
+                                "date": entry.get("date", ""),
+                                "text": entry.get("text", ""),
+                            },
                         },
-                    },
-                })
+                    })
 
             elif rtype == "duo":
                 photos = []
@@ -324,17 +335,18 @@ def arrange_pages(photo_files, recits=None):
             elif rtype == "hero_texte":
                 rel_path = entry.get("photo", "")
                 photo_data = _build_photo_data(rel_path, PHOTOS_DIR)
-                pages.append({
-                    "style": "hero_texte",
-                    "data": {
-                        "photo": photo_data,
-                        "recit": {
-                            "title": entry.get("title", ""),
-                            "date": entry.get("date", ""),
-                            "text": entry.get("text", ""),
+                if photo_data:
+                    pages.append({
+                        "style": "hero_texte",
+                        "data": {
+                            "photo": photo_data,
+                            "recit": {
+                                "title": entry.get("title", ""),
+                                "date": entry.get("date", ""),
+                                "text": entry.get("text", ""),
+                            },
                         },
-                    },
-                })
+                    })
 
             elif rtype == "polaroid":
                 photos = []
@@ -364,23 +376,29 @@ def arrange_pages(photo_files, recits=None):
                     pd = _build_photo_data(rel_path, PHOTOS_DIR)
                     if pd:
                         frames.append(pd)
-                pages.append({
-                    "style": "video_extrait",
-                    "data": {
-                        "frames": frames,
-                        "video": {
-                            "title": entry.get("video_title", "Extrait vidéo"),
-                            "timecode": entry.get("timecode", "00:00:00"),
-                            "quote": entry.get("quote", ""),
-                            "meta": entry.get("meta", ""),
+                if frames:
+                    pages.append({
+                        "style": "video_extrait",
+                        "data": {
+                            "frames": frames,
+                            "video": {
+                                "title": entry.get("video_title", "Extrait vidéo"),
+                                "timecode": entry.get("timecode", "00:00:00"),
+                                "quote": entry.get("quote", ""),
+                                "meta": entry.get("meta", ""),
+                            },
                         },
-                    },
-                })
+                    })
 
             elif rtype == "video_54":
                 frames = []
                 timecodes = entry.get("timecodes", [])
-                for i, rel_path in enumerate(entry.get("frames", [])):
+                raw_frames = entry.get("frames", [])
+                # Validate exactly 20 frames for 5x4 grid layout
+                if len(raw_frames) != 20:
+                    print(f"  ⚠ video_54 entry has {len(raw_frames)} frames (expected 20) — skipping")
+                    continue
+                for i, rel_path in enumerate(raw_frames):
                     pd = _build_photo_data(rel_path, PHOTOS_DIR)
                     if pd:
                         tc = timecodes[i] if i < len(timecodes) else ""

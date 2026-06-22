@@ -10,6 +10,7 @@
     </div>
     {% endif %}
     <div class="typo-text-block">
+      {% if page.recit %}
       {% if page.recit.title %}
       <h2 class="typo-title">{{ page.recit.title }}</h2>
       {% endif %}
@@ -24,6 +25,7 @@
         <p>{{ page.recit.text }}</p>
         {% endif %}
       </div>
+      {% endif %}
       {% endif %}
     </div>
   </div>

@@ -332,6 +332,8 @@ html, body {
 .collage-item-8 { width: 30%; height: 38%; }
 .collage-item-9 { width: 30%; height: 38%; }
 .collage-item-10 { width: 50%; height: 45%; }
+/* Fallback for items beyond 10 (modulo cycling in template handles this) */
+[class*="collage-item"] { width: 40%; height: 42%; }
 
 /* ============================================================= */
 /*  5. TYPOGRAPHIQUE — Texte + 0-1 photo, pause / citation       */

@@ -9,12 +9,14 @@
     <h3 class="duo-title">{{ page.title }}</h3>
     {% endif %}
     <div class="duo-container">
+      {% if page.photos %}
       {% for photo in page.photos %}
       <div class="duo-photo">
         <img src="{{ photo.path }}" alt="{{ photo.label }}">
         {% if photo.label %}<span class="duo-label">{{ photo.label }}</span>{% endif %}
       </div>
       {% endfor %}
+      {% endif %}
     </div>
   </div>
   <div class="page-number">— {{ page.page_num }} —</div>
