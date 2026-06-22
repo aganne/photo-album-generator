@@ -1,0 +1,27 @@
+<!-- Page Extrait Vidéo — Pellicule 5 lignes × 4 colonnes -->
+<div class="page video-54-page">
+  <div class="video-54-header">
+    <div class="video-54-play-icon">▶</div>
+    <h3>{{ page.video.title }}</h3>
+  </div>
+
+  <div class="video-54-strip">
+    {% for frame in page.frames %}
+    <div class="video-54-frame">
+      <img src="{{ frame.path }}" alt="frame {{ loop.index }}">
+      <span class="video-54-tc">{{ frame.timecode | default('') }}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if page.video.quote %}
+  <div class="video-54-caption">
+    <p class="quote">« {{ page.video.quote }} »</p>
+    {% if page.video.meta %}
+    <p class="meta">{{ page.video.meta }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="page-number video-54-pn">— {{ page.page_num }} —</div>
+</div>

@@ -32,6 +32,8 @@ PALETTES_DISPONIBLES = {
         "accent_3": "#d4b888",
         "photo_border": "#ffffff",
         "deco_line": "#c49a5a",
+        # Désaturation avant injection HTML (compense la sursaturation à l'impression)
+        "desaturation": 10,   # 0 = pas de désaturation, 10 = -10% saturation
     },
     # Exemple de palette Océan :
     # "Ocean": {
@@ -40,6 +42,7 @@ PALETTES_DISPONIBLES = {
     #     "bg_mid": "#d0e8f0",
     #     "bg_end": "#a8d4e8",
     #     ...
+    #     "desaturation": 10,
     # },
 }
 
@@ -56,38 +59,78 @@ FONTS = {
 
 # ── Métadonnées de l'album ──────────────────────────────────────────
 ALBUM = {
-    "title": "Mael — Première année",   # Titre principal
-    "subtitle": "2012",                  # Sous-titre / année
-    "author": "Armel & Anna",            # Auteurs
-    "year": 2012,
-    "enfant": "Mael",                    # Prénom de l'enfant
+    "title": "Album Photo",             # Titre principal
+    "subtitle": "Année Mémorable",       # Sous-titre / année
+    "author": "La Famille",              # Auteurs
+    "year": 2025,
+    "enfant": "Mon Enfant",              # Prénom générique
 }
 
 # ── Styles de page disponibles ─────────────────────────────────────
 PAGE_STYLES = {
-    "grille": {
-        "name": "Grille classique",
-        "photos_per_page": (3, 6),  # min, max
+    "heroique": {
+        "name": "Héroïque",
+        "density": "Aérée",
+        "photos_per_page": (1, 1),
+        "description": "1 photo pleine page — ouverture, moments forts",
+        "colors": {"bg": "#fefcf5", "overlay": "rgba(254,252,245,0.7)", "title": "#3a2a1a"},
+    },
+    "duo": {
+        "name": "Duo",
+        "density": "Modérée",
+        "photos_per_page": (2, 2),
+        "description": "2 photos côte à côte (symétrie ou contraste)",
         "colors": {"bg": "#fefcf5", "border": "#ffffff", "accent": "#c49a5a"},
     },
+    "grille": {
+        "name": "Grille classique",
+        "density": "Dense",
+        "photos_per_page": (3, 6),
+        "description": "3-6 photos structurées",
+        "colors": {"bg": "#fefcf5", "border": "#ffffff", "accent": "#c49a5a"},
+    },
+    "collage": {
+        "name": "Collage",
+        "density": "Très dense",
+        "photos_per_page": (5, 10),
+        "description": "5+ photos disposition organique",
+        "colors": {"bg": "#f5ede0", "border": "#ffffff", "shadow": "#d4b888"},
+    },
+    "typographique": {
+        "name": "Typographique",
+        "density": "Aérée",
+        "photos_per_page": (0, 1),
+        "description": "Texte + 0-1 photo — pause, citation",
+        "colors": {"bg": "#fefcf5", "deco": "#c49a5a", "quote": "#8a6a3a"},
+    },
     "hero_texte": {
-        "name": "Hero + Texte",
+        "name": "Hero + Texte (legacy)",
+        "density": "Aérée",
         "photo_ratio": 0.55,
         "colors": {"bg": "#fefcf5", "deco": "#c49a5a"},
     },
     "polaroid": {
-        "name": "Polaroid éparpillé",
+        "name": "Polaroid éparpillé (legacy)",
+        "density": "Très dense",
         "photos_per_page": (4, 6),
         "rotation_range": (-3, 3),
         "border_px": 30,
         "colors": {"bg": "#f5ede0", "border": "#ffffff", "shadow": "#d4b888"},
     },
     "video_extrait": {
-        "name": "Extrait vidéo",
+        "name": "Extrait vidéo (legacy)",
         "cols": 4,
         "rows": 5,
         "total_frames": 20,
         "film_border_color": "#1a1a1a",
         "colors": {"bg": "#1a1a1a", "text": "#e8cfa0"},
+    },
+    "video_54": {
+        "name": "Extrait vidéo 5×4",
+        "cols": 4,
+        "rows": 5,
+        "total_frames": 20,
+        "description": "Grille 5 lignes × 4 colonnes, style pellicule sombre",
+        "colors": {"bg": "#0d0d0d", "border": "#2a2a2a", "text": "#e8cfa0"},
     },
 }
