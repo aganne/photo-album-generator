@@ -1,6 +1,54 @@
-/* ── Album Mael 2012 — Palette Soleil ☀️ ──────────────────────── */
+/* ── Album Photo Generator — Palette Soleil ☀️ ────────────────── */
 /* WeasyPrint CSS — Print-oriented, no screen fallbacks needed     */
 
+/* ── Polices ─────────────────────────────────────────────────── */
+/* DM Serif Display & Satoshi — Google Fonts (SIL Open Font License) */
+/* Téléchargez les .woff2/.ttf et placez-les dans fonts/ */
+
+@font-face {
+  font-family: "DM Serif Display";
+  src: url("fonts/DMSerifDisplay-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "DM Serif Display";
+  src: url("fonts/DMSerifDisplay-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("fonts/Satoshi-Regular.woff2") format("woff2"),
+       url("fonts/Satoshi-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("fonts/Satoshi-Bold.woff2") format("woff2"),
+       url("fonts/Satoshi-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("fonts/Satoshi-Italic.woff2") format("woff2"),
+       url("fonts/Satoshi-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ── Page setup ──────────────────────────────────────────────── */
 @page {
   size: 216.35mm 302.75mm;
   margin: 0;
@@ -23,7 +71,7 @@
 html, body {
   width: 216.35mm;
   height: 302.75mm;
-  font-family: "Satoshi", "DejaVu Sans", sans-serif;
+  font-family: "Satoshi", "DejaVu Sans", system-ui, sans-serif;
   color: #3a2a1a;
   background: #fefcf5;
   -webkit-print-color-adjust: exact;
@@ -95,7 +143,111 @@ html, body {
   letter-spacing: 1.5pt;
 }
 
-/* ── 1. GRILLE CLASSIQUE ──────────────────────────────────── */
+/* ── Page blanche (reliure multiple de 4) ──────────────────── */
+.blank-page .page-number { display: none; }
+
+/* ============================================================= */
+/*  1. HÉROÏQUE — 1 photo pleine page                            */
+/* ============================================================= */
+.heroique-page {
+  background: #1a1a1a;
+}
+.heroique-page .page-bg { display: none; }
+.heroique-page .band-top { display: none; }
+.heroique-page .band-bottom { display: none; }
+
+.heroique-photo {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+}
+.heroique-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.heroique-overlay {
+  position: absolute;
+  bottom: 18mm;
+  left: 12.7mm;
+  right: 12.7mm;
+  background: rgba(254,252,245,0.85);
+  padding: 5mm 8mm;
+  text-align: center;
+  z-index: 2;
+  border-radius: 0.5mm;
+}
+.heroique-overlay h2 {
+  font-family: "DM Serif Display", serif;
+  font-size: 18pt;
+  color: #3a2a1a;
+  font-weight: 400;
+  margin-bottom: 1.5mm;
+}
+.heroique-overlay .date-line {
+  font-family: "Satoshi", sans-serif;
+  font-size: 8pt;
+  color: #8a6a3a;
+  letter-spacing: 1pt;
+}
+
+.heroique-pn {
+  color: rgba(254,252,245,0.5) !important;
+}
+
+/* ============================================================= */
+/*  2. DUO — 2 photos côte à côte                                */
+/* ============================================================= */
+.duo-content {
+  display: flex;
+  flex-direction: column;
+}
+.duo-title {
+  font-family: "DM Serif Display", serif;
+  font-size: 13pt;
+  color: #3a2a1a;
+  text-align: center;
+  margin-bottom: 4mm;
+  font-weight: 400;
+  letter-spacing: 0.5pt;
+}
+.duo-container {
+  flex: 1;
+  display: flex;
+  gap: 3mm;
+  align-items: center;
+  justify-content: center;
+}
+.duo-photo {
+  flex: 1;
+  max-width: calc(50% - 1.5mm);
+  background: #ffffff;
+  padding: 2mm;
+  box-shadow: 0 0.3mm 0.8mm rgba(0,0,0,0.08);
+  position: relative;
+}
+.duo-photo img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.duo-label {
+  position: absolute;
+  bottom: 3mm;
+  left: 3mm;
+  font-family: "Satoshi", sans-serif;
+  font-size: 6pt;
+  color: #8a6a3a;
+  background: rgba(254,252,245,0.85);
+  padding: 0.3mm 1mm;
+  border-radius: 0.3mm;
+}
+
+/* ============================================================= */
+/*  3. GRILLE — 3-6 photos structurées (existant)                */
+/* ============================================================= */
 .grille-grid {
   display: flex;
   flex-wrap: wrap;
@@ -133,7 +285,126 @@ html, body {
 .grille-4 .grille-item { width: calc(50% - 2mm); max-width: 45%; }
 .grille-6 .grille-item { width: calc(33.333% - 2mm); }
 
-/* ── 2. HERO + TEXTE ──────────────────────────────────────── */
+/* ============================================================= */
+/*  4. COLLAGE — 5+ photos disposition organique                 */
+/* ============================================================= */
+.collage-content {
+  display: flex;
+  flex-direction: column;
+}
+.collage-title {
+  font-family: "DM Serif Display", serif;
+  font-size: 11pt;
+  color: #3a2a1a;
+  text-align: center;
+  margin-bottom: 3mm;
+  font-weight: 400;
+}
+.collage-grid {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5mm;
+  align-content: flex-start;
+  justify-content: center;
+}
+.collage-item {
+  position: relative;
+  background: #ffffff;
+  padding: 1.5mm;
+  box-shadow: 0 0.2mm 0.5mm rgba(0,0,0,0.10);
+  overflow: hidden;
+}
+.collage-item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Taille variable des items du collage — plus organique */
+.collage-item-1 { width: 55%; height: 50%; }
+.collage-item-2 { width: 40%; height: 45%; }
+.collage-item-3 { width: 45%; height: 45%; }
+.collage-item-4 { width: 50%; height: 50%; }
+.collage-item-5 { width: 35%; height: 40%; }
+.collage-item-6 { width: 40%; height: 40%; }
+.collage-item-7 { width: 55%; height: 50%; }
+.collage-item-8 { width: 30%; height: 38%; }
+.collage-item-9 { width: 30%; height: 38%; }
+.collage-item-10 { width: 50%; height: 45%; }
+/* Fallback for items beyond 10 (modulo cycling in template handles this) */
+[class*="collage-item"] { width: 40%; height: 42%; }
+
+/* ============================================================= */
+/*  5. TYPOGRAPHIQUE — Texte + 0-1 photo, pause / citation       */
+/* ============================================================= */
+.typo-page { background: #fefcf5; }
+.typo-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 15mm 20mm;
+}
+.typo-photo-frame {
+  width: 60%;
+  max-height: 45%;
+  overflow: hidden;
+  margin-bottom: 5mm;
+  background: #ffffff;
+  padding: 2mm;
+  box-shadow: 0 0.3mm 0.8mm rgba(0,0,0,0.06);
+}
+.typo-photo-frame img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+.typo-text-block {
+  text-align: center;
+  width: 100%;
+}
+.typo-title {
+  font-family: "DM Serif Display", serif;
+  font-size: 20pt;
+  color: #3a2a1a;
+  font-weight: 400;
+  margin-bottom: 2mm;
+  letter-spacing: 0.5pt;
+}
+.typo-date {
+  font-family: "Satoshi", sans-serif;
+  font-size: 8pt;
+  color: #8a6a3a;
+  letter-spacing: 1.5pt;
+  margin-bottom: 5mm;
+}
+.typo-body {
+  text-align: left;
+  margin-top: 3mm;
+}
+.typo-body p {
+  font-family: "Satoshi", sans-serif;
+  font-size: 10pt;
+  color: #5a3a1a;
+  line-height: 1.7;
+}
+.typo-quote {
+  font-family: "DM Serif Display", serif;
+  font-size: 14pt;
+  color: #8a6a3a;
+  font-style: italic;
+  line-height: 1.6;
+  border-left: 1.5mm solid #c49a5a;
+  padding-left: 5mm;
+  margin: 0;
+  text-align: left;
+}
+
+/* ============================================================= */
+/*  6. HERO + TEXTE (legacy, conservé)                           */
+/* ============================================================= */
 .hero-section {
   width: 100%;
   height: 55%;
@@ -177,7 +448,9 @@ html, body {
   text-align: left;
 }
 
-/* ── 3. POLAROID ÉPARS ────────────────────────────────────── */
+/* ============================================================= */
+/*  7. POLAROID ÉPARS (legacy, conservé)                         */
+/* ============================================================= */
 .polaroid-container {
   position: relative;
   width: 100%;
@@ -198,9 +471,150 @@ html, body {
   object-fit: cover;
 }
 
-/* Rotations individuelles appliquées en inline style */
+/* ============================================================= */
+/*  8. VIDÉO 5×4 — Pellicule 5 lignes × 4 colonnes               */
+/* ============================================================= */
+.video-54-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #0d0d0d;
+}
+.video-54-header {
+  position: absolute;
+  top: 12mm;
+  left: 12.7mm;
+  right: 12.7mm;
+  display: flex;
+  align-items: center;
+  gap: 2.5mm;
+  z-index: 3;
+}
+.video-54-play-icon {
+  width: 7mm; height: 7mm;
+  background: #c49a5a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3.5mm;
+  color: #0d0d0d;
+  line-height: 1;
+}
+.video-54-header h3 {
+  font-family: "DM Serif Display", serif;
+  font-size: 10pt;
+  color: #e8cfa0;
+  font-weight: 400;
+  letter-spacing: 0.5pt;
+}
 
-/* ── 4. EXTRAIT VIDÉO (pellicule) ─────────────────────────── */
+.video-54-strip {
+  position: absolute;
+  top: 24mm;
+  left: 8mm;
+  right: 8mm;
+  bottom: 18mm;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: 1mm;
+  z-index: 2;
+  padding: 2mm;
+  background: #0d0d0d;
+  border-top: 2mm solid #1a1a1a;
+  border-bottom: 2mm solid #1a1a1a;
+  /* Garde-fou : ne pas déborder si plus de 20 frames sont injectées */
+  overflow: hidden;
+}
+
+/* Perforations style pellicule */
+.video-54-strip::before {
+  content: "";
+  position: absolute;
+  top: -1.5mm;
+  left: 2mm;
+  right: 2mm;
+  height: 0.8mm;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 2.5mm,
+    #0d0d0d 2.5mm,
+    #0d0d0d 4.5mm
+  );
+  z-index: 4;
+}
+.video-54-strip::after {
+  content: "";
+  position: absolute;
+  bottom: -1.5mm;
+  left: 2mm;
+  right: 2mm;
+  height: 0.8mm;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 2.5mm,
+    #0d0d0d 2.5mm,
+    #0d0d0d 4.5mm
+  );
+  z-index: 4;
+}
+
+.video-54-frame {
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  border: 0.2mm solid #2a2a2a;
+}
+.video-54-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.video-54-tc {
+  position: absolute;
+  bottom: 0.5mm;
+  right: 1mm;
+  font-family: "Courier New", monospace;
+  font-size: 4.5pt;
+  color: rgba(232,207,160,0.7);
+  background: rgba(0,0,0,0.6);
+  padding: 0.2mm 0.8mm;
+  border-radius: 0.2mm;
+}
+
+.video-54-caption {
+  position: absolute;
+  bottom: 8mm;
+  left: 12.7mm;
+  right: 12.7mm;
+  text-align: center;
+  z-index: 3;
+}
+.video-54-caption .quote {
+  font-family: "DM Serif Display", serif;
+  font-size: 9pt;
+  font-style: italic;
+  color: #e8cfa0;
+  margin-bottom: 1.5mm;
+}
+.video-54-caption .meta {
+  font-family: "Satoshi", sans-serif;
+  font-size: 6.5pt;
+  color: #8a6a3a;
+  letter-spacing: 0.5pt;
+}
+
+.video-54-pn {
+  color: rgba(232,207,160,0.3) !important;
+}
+
+/* ============================================================= */
+/*  9. EXTRAIT VIDÉO legacy (4 cols, conservé)                   */
+/* ============================================================= */
 .video-extrait {
   position: relative;
   width: 100%;
@@ -236,7 +650,6 @@ html, body {
   letter-spacing: 0.5pt;
 }
 
-/* Film strip frame */
 .film-strip {
   position: absolute;
   top: 28mm;
@@ -252,7 +665,6 @@ html, body {
   border-bottom: 1.5mm solid #2a2a2a;
 }
 
-/* Perforations haut */
 .film-strip::before {
   content: "";
   position: absolute;
@@ -268,7 +680,6 @@ html, body {
     #1a1a1a 4.5mm
   );
 }
-/* Perforations bas */
 .film-strip::after {
   content: "";
   position: absolute;
@@ -330,7 +741,9 @@ html, body {
   letter-spacing: 0.5pt;
 }
 
-/* ── PAGE DE GARDE ─────────────────────────────────────────── */
+/* ============================================================= */
+/*  PAGE DE GARDE                                                */
+/* ============================================================= */
 .titre-page {
   display: flex;
   flex-direction: column;

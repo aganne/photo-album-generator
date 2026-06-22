@@ -11,16 +11,28 @@
 {% for page in pages %}
   {% if page.style == "titre" %}
     {% include "titre.html" %}
+  {% elif page.style == "heroique" %}
+    {% include "heroique.html" %}
+  {% elif page.style == "duo" %}
+    {% include "duo.html" %}
   {% elif page.style == "grille" %}
     {% include "grille.html" %}
+  {% elif page.style == "collage" %}
+    {% include "collage.html" %}
+  {% elif page.style == "typographique" %}
+    {% include "typographique.html" %}
   {% elif page.style == "hero_texte" %}
     {% include "hero_texte.html" %}
   {% elif page.style == "polaroid" %}
     {% include "polaroid.html" %}
   {% elif page.style == "video_extrait" %}
     {% include "video_extrait.html" %}
+  {% elif page.style == "video_54" %}
+    {% include "video_54.html" %}
   {% elif page.style == "credits" %}
     {% include "credits.html" %}
+  {% elif page.style == "blank" %}
+    {% include "blank.html" %}
   {% endif %}
 {% endfor %}
 

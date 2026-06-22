@@ -5,6 +5,7 @@
   <div class="band-bottom"></div>
   <div class="band-bottom-thin"></div>
   <div class="content">
+    {% if page.photos %}
     <div class="grille-grid grille-{{ page.photos|length }}">
       {% for photo in page.photos %}
       <div class="grille-item">
@@ -15,6 +16,9 @@
       </div>
       {% endfor %}
     </div>
+    {% else %}
+    <!-- Aucune photo pour cette page grille -->
+    {% endif %}
   </div>
   <div class="page-number">— {{ page.page_num }} —</div>
 </div>

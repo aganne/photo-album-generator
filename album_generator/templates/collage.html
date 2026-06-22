@@ -1,0 +1,23 @@
+<!-- Page Collage — 5+ photos disposition organique -->
+<div class="page">
+  <div class="page-bg"></div>
+  <div class="band-top"></div>
+  <div class="band-bottom"></div>
+  <div class="band-bottom-thin"></div>
+  <div class="content collage-content">
+    {% if page.title %}
+    <h3 class="collage-title">{{ page.title }}</h3>
+    {% endif %}
+    <div class="collage-grid">
+      {% if page.photos %}
+      {% for photo in page.photos %}
+      <div class="collage-item collage-item-{{ ((loop.index - 1) % 10) + 1 }}"
+           style="grid-area: auto;">
+        <img src="{{ photo.path }}" alt="{{ photo.label }}">
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="page-number">— {{ page.page_num }} —</div>
+</div>

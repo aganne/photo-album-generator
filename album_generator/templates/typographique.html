@@ -1,0 +1,33 @@
+<!-- Page Typographique — Texte + 0-1 photo, pause / citation -->
+<div class="page typo-page">
+  <div class="page-bg"></div>
+  <div class="band-top"></div>
+  <div class="band-bottom"></div>
+  <div class="content typo-content">
+    {% if page.photo %}
+    <div class="typo-photo-frame">
+      <img src="{{ page.photo.path }}" alt="{{ page.photo.label }}">
+    </div>
+    {% endif %}
+    <div class="typo-text-block">
+      {% if page.recit %}
+      {% if page.recit.title %}
+      <h2 class="typo-title">{{ page.recit.title }}</h2>
+      {% endif %}
+      {% if page.recit.date %}
+      <p class="typo-date">{{ page.recit.date }}</p>
+      {% endif %}
+      {% if page.recit.text %}
+      <div class="typo-body">
+        {% if page.recit.quote %}
+        <blockquote class="typo-quote">« {{ page.recit.text }} »</blockquote>
+        {% else %}
+        <p>{{ page.recit.text }}</p>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="page-number">— {{ page.page_num }} —</div>
+</div>
