@@ -1,0 +1,29 @@
+<!-- Page Collage Rectpack — 6-9 photos packées par rectpack -->
+<!-- Les positions (left, top, width, height en %) sont pré-calculées côté Python -->
+<div class="page">
+  <div class="page-bg"></div>
+  <div class="band-top"></div>
+  <div class="band-bottom"></div>
+  <div class="band-bottom-thin"></div>
+  <div class="content collage-rp-content">
+    {% if page.title %}
+    <h3 class="collage-rp-title">{{ page.title }}</h3>
+    {% endif %}
+    <div class="collage-rp-grid">
+      {% if page.photos %}
+      {% for photo in page.photos %}
+      <div class="collage-rp-item" style="
+        position: absolute;
+        left: {{ photo.left }}%;
+        top: {{ photo.top }}%;
+        width: {{ photo.width }}%;
+        height: {{ photo.height }}%;
+      ">
+        <img src="{{ photo.path }}" alt="{{ photo.label }}">
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="page-number">— {{ page.page_num }} —</div>
+</div>

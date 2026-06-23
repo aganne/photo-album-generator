@@ -4,13 +4,15 @@ Générateur d'album photo PDF — Template Jinja2 → HTML → WeasyPrint → P
 
 Usage:
   python3 generate.py                       # Génère avec les données par défaut
-  python3 generate.py --photos ./photos     # Scoring IA auto + dispatch 7/13/80
+  python3 generate.py --photos ./photos     # Scoring IA auto + dispatch v3 fenêtre glissante
   python3 generate.py --photos ./photos --no-scoring  # Mode batch classique
   python3 generate.py --photos ./photos --scoring     # Forcer le scoring
   python3 generate.py --recits recits.json  # Fichier JSON des récits
   python3 generate.py --output mon_album.pdf
   python3 generate.py --html-only           # Génère seulement le HTML (pas de PDF)
   python3 generate.py --checklist           # Affiche la checklist avant génération
+  python3 generate.py --no-smartcrop        # Désactiver le smart crop
+  python3 generate.py --window-size 50      # Taille de fenêtre glissante (défaut: 40)
 
 Exemple:
   pip install -r requirements.txt
@@ -52,6 +54,12 @@ OUTPUT_DIR = PROJECT_DIR / "output"
 DATA_DIR = PROJECT_DIR / "data"
 FONTS_DIR = PROJECT_DIR / "fonts"
 
+# Mois en français
+_MONTH_NAMES = [
+    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+]
+
 
 def load_styles():
     """Charge le CSS pour l'inliner dans le template."""
@@ -73,18 +81,7 @@ def load_recits(recits_path=None):
             "date": "Janvier 2012",
             "text": "Texte du récit..."
         },
-        {
-            "type": "grille",
-            "photos": ["path1.jpg", "path2.jpg", ...]
-        },
-        {
-            "type": "video_54",
-            "video_title": "Premiers pas",
-            "frames": ["frame1.jpg", ...],
-            "timecodes": ["00:01:23", ...],
-            "quote": "...",
-            "meta": "..."
-        }
+        ...
     ]
     """
     if recits_path:
@@ -104,17 +101,14 @@ def print_checklist(pages, photo_files):
     print("📋 CHECKLIST PRÉ-GÉNÉRATION")
     print("=" * 60)
 
-    # 1. Photos
     print(f"\n📸 Photos : {len(photo_files)} trouvées")
     for pf in sorted(photo_files)[:10]:
         print(f"   • {pf.name}")
     if len(photo_files) > 10:
         print(f"   ... et {len(photo_files) - 10} autres")
 
-    # 2. Pages
     print(f"\n📄 Pages : {len(pages)} (dont garde et crédits)")
 
-    # Styles utilisés
     styles = {}
     for p in pages:
         s = p.get("style", "?")
@@ -124,7 +118,6 @@ def print_checklist(pages, photo_files):
         name = PAGE_STYLES.get(s, {}).get("name", s)
         print(f"   • {name} ({s}) : {c} page(s)")
 
-    # 3. Multiple de 4
     mod4 = len(pages) % 4
     if mod4 != 0:
         need = 4 - mod4
@@ -133,19 +126,16 @@ def print_checklist(pages, photo_files):
     else:
         print(f"\n✅ Nombre de pages ({len(pages)}) multiple de 4 — OK reliure.")
 
-    # 4. Bleed
     print(f"\n🩸 Fonds perdus (bleed) : {BLEED_MM} mm")
     print(f"   Marge de sécurité : {SAFE_MARGIN_MM} mm")
     print(f"   Format page : {PAGE_WIDTH_MM} × {PAGE_HEIGHT_MM} mm")
 
-    # 5. Désaturation
     ds = PALETTE.get("desaturation", 0)
     if ds > 0:
         print(f"\n🎨 Désaturation activée : -{ds}% (compensation impression)")
     else:
         print(f"\n🎨 Désaturation : désactivée")
 
-    # 6. Polices
     print(f"\n🔤 Polices :")
     for role, font in FONTS.items():
         status = "✓" if _font_available(font) else "✗ (non trouvée)"
@@ -177,28 +167,18 @@ def _font_available(font_name):
 def group_photos_by_month(photo_files, use_exif=True):
     """
     Trie les photos par mois (basé sur EXIF si disponible, sinon nom de fichier).
-
-    Retourne une liste de (mois, [photos]) triée chronologiquement.
-
-    On essaie d'extraire la date depuis EXIF en priorité.
-    Format fallback iPhone: IMG_YYYYMMDD_HHMMSS.jpg
-    Format fallback appareil: DSC_1234.jpg (modification time)
     """
     from collections import OrderedDict
     import re
 
-    # Si EXIF disponible, l'utiliser en priorité
     if use_exif:
         try:
             return group_photos_by_exif_month(photo_files)
         except Exception:
-            pass  # fallback au nom de fichier
+            pass
 
     months = OrderedDict()
-    month_names = [
-        "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-        "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
-    ]
+    month_names = _MONTH_NAMES
 
     for fp in sorted(photo_files, key=lambda p: str(p)):
         if not fp.exists():
@@ -206,10 +186,9 @@ def group_photos_by_month(photo_files, use_exif=True):
         stem = fp.stem
         month_idx = None
 
-        # IMG_YYYYMMDD pattern (iPhone)
         m = re.search(r'(\\d{4})(\\d{2})(\\d{2})', stem)
         if m:
-            month_idx = int(m.group(2)) - 1  # 0-based
+            month_idx = int(m.group(2)) - 1
         else:
             try:
                 mtime = os.path.getmtime(fp)
@@ -240,37 +219,219 @@ def _build_photo_data(rel_path, photos_root, extra=None):
     return data if fp.exists() else None
 
 
+def _make_photo_dict(path: str) -> Dict[str, str]:
+    """Crée un dict photo standard à partir d'un chemin absolu."""
+    return {
+        "path": str(Path(path).resolve()),
+        "label": Path(path).name,
+    }
+
+
+# ── Rectpack layout ─────────────────────────────────────────────────
+
+def _layout_rectpack_collage(
+    photo_batch: List[Tuple[str, float, Dict[str, float]]],
+) -> List[Dict[str, Any]]:
+    """Dispose un batch de 6-9 photos avec rectpack.
+
+    Les photos mieux notées reçoivent des rectangles plus grands.
+    Retourne une liste de dicts avec path, label, left, top, width, height
+    (positions en pourcentage de la zone disponible).
+    """
+    from rectpack import newPacker, MaxRectsBaf
+
+    packer = newPacker(rotation=False, pack_algo=MaxRectsBaf)
+
+    # Extraire les scores pour pondérer les tailles
+    paths = [p for p, _, _ in photo_batch]
+    scores = [s for _, s, _ in photo_batch]
+    min_s, max_s = min(scores), max(scores)
+
+    # Dimensions de base en pourcentage du conteneur
+    base_w = 28.0
+    base_h = 28.0
+
+    for idx, (path, score, details) in enumerate(photo_batch):
+        # Score → facteur de taille : 0.7 (min) à 1.3 (max)
+        if max_s > min_s:
+            factor = 0.7 + 0.6 * (score - min_s) / (max_s - min_s)
+        else:
+            factor = 1.0
+
+        w = int(base_w * factor)
+        h = int(base_h * factor)
+        packer.add_rect(w, h, rid=idx)
+
+    # Packer dans un conteneur 100×100
+    packer.add_bin(100, 100)
+    packer.pack()
+
+    # Indexer les résultats
+    rects = {}
+    for rect in packer.rect_list():
+        # rect = (bin_id, x, y, w, h, rid)
+        _, x, y, w, h, rid = rect
+        rects[rid] = (x, y, w, h)
+
+    # Construire la liste de photos avec positions
+    photos = []
+    for idx in range(len(photo_batch)):
+        path, score, details = photo_batch[idx]
+        if idx in rects:
+            x, y, w, h = rects[idx]
+            photos.append({
+                "path": str(Path(path).resolve()),
+                "label": Path(path).name,
+                "left": x,
+                "top": y,
+                "width": w,
+                "height": h,
+            })
+        else:
+            # Fallback : la photo n'a pas pu être packée
+            photos.append({
+                "path": str(Path(path).resolve()),
+                "label": Path(path).name,
+                "left": 5, "top": 5, "width": 40, "height": 40,
+            })
+
+    return photos
+
+
+# ── Nouveau dispatch v3 — Fenêtre glissante ─────────────────────────
+
+def arrange_pages_from_scores_v3(
+    photo_scores: List[Tuple[str, float, Dict[str, float]]],
+    window_size: int = 40,
+    collage_min: int = 6,
+    collage_max: int = 9,
+) -> List[Dict]:
+    """Dispatch fenêtre glissante — remplace l'ancien 7/13/80.
+
+    Les photos sont déjà triées chronologiquement (EXIF) par l'appelant.
+    On les découpe en fenêtres de `window_size`. Dans chaque fenêtre :
+      - Top 1 score  → Héroïque (pleine page)
+      - 2-4 scores   → Quatuor (3 photos + mois/année)
+      - Reste         → Collage rectpack (6-9 photos)
+
+    Args:
+        photo_scores: liste de (path, score, details) triée par EXIF
+        window_size: taille de la fenêtre glissante
+        collage_min: nombre minimum de photos par collage
+        collage_max: nombre maximum de photos par collage
+
+    Returns:
+        Liste de dicts représentant chaque page.
+    """
+    pages: List[Dict] = []
+
+    # 1. Page de garde
+    pages.append({"style": "titre", "data": {"album": ALBUM}})
+
+    n = len(photo_scores)
+    window_idx = 0
+
+    for start in range(0, n, window_size):
+        window = photo_scores[start:start + window_size]
+        if not window:
+            break
+
+        # Trier la fenêtre par score décroissant
+        window_sorted = sorted(window, key=lambda x: x[1], reverse=True)
+
+        # ── Mois/Année du premier élément chronologique ──
+        first_path = window[0][0]
+        month_label = ""
+        dt = extract_exif_date(first_path)
+        if dt:
+            month_label = f"{_MONTH_NAMES[dt.month - 1]} {dt.year}"
+        else:
+            month_label = f"Fenêtre {window_idx + 1}"
+
+        # ── Héroïque : top 1 ──
+        path, score, details = window_sorted[0]
+        pages.append({
+            "style": "heroique",
+            "data": {"photo": _make_photo_dict(path)},
+        })
+
+        # ── Quatuor : positions 2-4 ──
+        if len(window_sorted) >= 4:
+            quatuor_photos = [
+                _make_photo_dict(window_sorted[i][0])
+                for i in range(1, 4)
+            ]
+            pages.append({
+                "style": "quatuor",
+                "data": {
+                    "photos": quatuor_photos,
+                    "month_label": month_label,
+                },
+            })
+        elif len(window_sorted) == 3:
+            # 3 photos total → 1 héro + 2 dans une grille
+            photos = [
+                _make_photo_dict(window_sorted[i][0])
+                for i in range(1, 3)
+            ]
+            pages.append({
+                "style": "grille",
+                "data": {"photos": photos, "title": month_label},
+            })
+        elif len(window_sorted) == 2:
+            # 2 photos → 1 héro + 1 dans une autre héroïque
+            path2, _, _ = window_sorted[1]
+            pages.append({
+                "style": "heroique",
+                "data": {"photo": _make_photo_dict(path2)},
+            })
+
+        # ── Collages rectpack : reste (positions 5+) ──
+        rest_start = 4
+        rest = window_sorted[rest_start:]
+
+        idx = 0
+        while idx < len(rest):
+            batch_size = min(collage_max, len(rest) - idx)
+            if batch_size < collage_min:
+                # Trop peu pour un collage → grille
+                photos = [_make_photo_dict(rest[i][0]) for i in range(idx, len(rest))]
+                if photos:
+                    pages.append({
+                        "style": "grille",
+                        "data": {"photos": photos, "title": ""},
+                    })
+                break
+
+            batch = rest[idx:idx + batch_size]
+            collage_photos = _layout_rectpack_collage(batch)
+            pages.append({
+                "style": "collage_rectpack",
+                "data": {"photos": collage_photos},
+            })
+            idx += batch_size
+
+        window_idx += 1
+
+    # 2. Page de crédits
+    pages.append({"style": "credits", "data": {"album": ALBUM}})
+
+    return pages
+
+
+# ── Arrangement legacy ──────────────────────────────────────────────
+
 def arrange_pages(photo_files, recits=None, photos_root=None):
     """
     Organise les pages de l'album à partir des photos et récits.
-
-    Types supportés :
-      - heroique      : 1 photo pleine page (ouverture, moments forts)
-      - duo           : 2 photos côte à côte
-      - grille        : 3-6 photos structurées
-      - collage       : 5+ photos disposition organique
-      - typographique : texte + 0-1 photo (pause, citation)
-      - hero_texte    : legacy — photo + texte narratif
-      - polaroid      : legacy — photos éparpillées
-      - video_extrait : legacy — pellicule vidéo
-      - video_54      : grille 5×4 style pellicule sombre
-
-    Args:
-        photo_files: liste de Paths vers les photos scannées
-        recits: liste de récits formatés (ou None pour mode auto)
-        photos_root: dossier racine pour résoudre les chemins relatifs
-                     des photos dans les récits (défaut: PHOTOS_DIR)
-
-    Returns: liste de dicts représentant chaque page.
+    (Mode classique, conservé pour compatibilité et --no-scoring)
     """
     if photos_root is None:
         photos_root = PHOTOS_DIR
     pages = []
 
-    # 1. Page de garde
     pages.append({"style": "titre", "data": {"album": ALBUM}})
 
-    # 2. Si on a des récits, les intégrer selon leur type
     if recits:
         for entry in recits:
             rtype = entry.get("type", "grille")
@@ -291,21 +452,6 @@ def arrange_pages(photo_files, recits=None, photos_root=None):
                         },
                     })
 
-            elif rtype == "duo":
-                photos = []
-                for rel_path in entry.get("photos", [])[:2]:
-                    pd = _build_photo_data(rel_path, photos_root)
-                    if pd:
-                        photos.append(pd)
-                if photos:
-                    pages.append({
-                        "style": "duo",
-                        "data": {
-                            "photos": photos,
-                            "title": entry.get("title", ""),
-                        },
-                    })
-
             elif rtype == "grille":
                 photos = []
                 for rel_path in entry.get("photos", []):
@@ -316,27 +462,6 @@ def arrange_pages(photo_files, recits=None, photos_root=None):
                     if pd:
                         photos.append(pd)
                 if photos:
-                    pages.append({
-                        "style": "grille",
-                        "data": {"photos": photos, "title": entry.get("title", "")},
-                    })
-
-            elif rtype == "collage":
-                photos = []
-                for rel_path in entry.get("photos", []):
-                    pd = _build_photo_data(rel_path, photos_root)
-                    if pd:
-                        photos.append(pd)
-                if len(photos) >= 5:
-                    pages.append({
-                        "style": "collage",
-                        "data": {
-                            "photos": photos,
-                            "title": entry.get("title", ""),
-                        },
-                    })
-                elif photos:
-                    # Pas assez pour un collage → grille
                     pages.append({
                         "style": "grille",
                         "data": {"photos": photos, "title": entry.get("title", "")},
@@ -420,7 +545,6 @@ def arrange_pages(photo_files, recits=None, photos_root=None):
                 frames = []
                 timecodes = entry.get("timecodes", [])
                 raw_frames = entry.get("frames", [])
-                # Validate exactly 20 frames for 5x4 grid layout
                 if len(raw_frames) != 20:
                     print(f"  ⚠ video_54 entry has {len(raw_frames)} frames (expected 20) — skipping")
                     continue
@@ -444,8 +568,8 @@ def arrange_pages(photo_files, recits=None, photos_root=None):
                         },
                     })
 
-    # 3. Si pas de récits, générer automatiquement par mois
     else:
+        # Mode auto sans scoring — groupement par mois
         months = group_photos_by_month(photo_files)
         for month_name, month_photos in months:
             photos_data = []
@@ -456,7 +580,6 @@ def arrange_pages(photo_files, recits=None, photos_root=None):
                     "date": month_name[:3],
                 })
 
-            # Répartir en pages avec variété
             batch_size = 4
             for i in range(0, len(photos_data), batch_size):
                 batch = photos_data[i:i + batch_size]
@@ -464,24 +587,63 @@ def arrange_pages(photo_files, recits=None, photos_root=None):
 
                 if n == 1:
                     pages.append({"style": "heroique", "data": {"photo": batch[0]}})
-                elif n == 2:
-                    pages.append({"style": "duo", "data": {"photos": batch}})
                 elif n <= 4:
                     pages.append({"style": "grille", "data": {"photos": batch}})
                 else:
-                    # Varier entre grille et collage
                     if (i // batch_size) % 3 == 0:
                         pages.append({"style": "grille", "data": {"photos": batch}})
-                    elif (i // batch_size) % 3 == 1:
-                        pages.append({"style": "collage", "data": {"photos": batch}})
                     else:
-                        pages.append({"style": "duo", "data": {"photos": batch[:2]}})
+                        pages.append({"style": "grille", "data": {"photos": batch[:4]}})
 
-    # 4. Page de crédits
     pages.append({"style": "credits", "data": {"album": ALBUM}})
-
     return pages
 
+
+# ── Pré-traitement photos : smart crop + rotation EXIF ──────────────
+
+def preprocess_scored_photos(
+    photo_scores: List[Tuple[str, float, Dict[str, float]]],
+    crop_dir: Optional[Path] = None,
+) -> List[Tuple[str, float, Dict[str, float]]]:
+    """Applique smart_crop et fix_exif_rotation aux photos notées.
+
+    Args:
+        photo_scores: liste de (path, score, details)
+        crop_dir: dossier où sauvegarder les crops (None = pas de crop)
+
+    Returns:
+        Nouvelle liste avec les chemins mis à jour après crop/rotation.
+    """
+    result = []
+    rotated = 0
+    cropped = 0
+
+    for path, score, details in photo_scores:
+        current_path = path
+
+        # 1. Rotation EXIF (corrige l'orientation en place)
+        if PhotoScorer.fix_exif_rotation(current_path):
+            rotated += 1
+
+        # 2. Smart crop (si activé)
+        if crop_dir is not None:
+            crop_dir.mkdir(parents=True, exist_ok=True)
+            crop_out = str(crop_dir / f"crop_{Path(current_path).name}")
+            if PhotoScorer.smart_crop(current_path, crop_out):
+                current_path = crop_out
+                cropped += 1
+
+        result.append((current_path, score, details))
+
+    if rotated > 0:
+        print(f"   🔄 {rotated} photos pivotées (EXIF)")
+    if cropped > 0:
+        print(f"   ✂️  {cropped} photos recadrées (smart crop)")
+
+    return result
+
+
+# ── Ancien dispatch 7/13/80 (conservé pour compatibilité) ──────────
 
 def arrange_pages_from_scores(
     dispatch: Dict[str, List[Tuple[str, float, Dict[str, float]]]],
@@ -489,37 +651,17 @@ def arrange_pages_from_scores(
     recits: Optional[List[Dict]] = None,
     collage_every: int = 4,
 ) -> List[Dict]:
-    """Organise les pages à partir des scores et du dispatch 7/13/80.
-
-    Args:
-        dispatch: résultat de PhotoDispatcher.dispatch() —
-                  dict avec clés "heroique", "duo", "grille".
-        photos_root: dossier racine pour résoudre les chemins.
-        recits: récits optionnels (pour les pages typographiques intercalées).
-        collage_every: insérer une page collage toutes les N pages grille.
-
-    Returns:
-        Liste de dicts représentant chaque page.
-    """
+    """Organise les pages à partir des scores et du dispatch 7/13/80."""
     pages: List[Dict] = []
 
-    # 1. Page de garde
     pages.append({"style": "titre", "data": {"album": ALBUM}})
 
-    # 2. Pages héroïques (top 7%)
     for path, score, details in dispatch.get("heroique", []):
         photo_data = _build_photo_data(str(path), Path("/"))
         if photo_data is None:
-            photo_data = {
-                "path": str(Path(path).resolve()),
-                "label": Path(path).name,
-            }
-        pages.append({
-            "style": "heroique",
-            "data": {"photo": photo_data},
-        })
+            photo_data = {"path": str(Path(path).resolve()), "label": Path(path).name}
+        pages.append({"style": "heroique", "data": {"photo": photo_data}})
 
-    # 3. Pages duo (7-20%)
     duo_photos = dispatch.get("duo", [])
     for i in range(0, len(duo_photos), 2):
         batch = duo_photos[i:i + 2]
@@ -527,20 +669,13 @@ def arrange_pages_from_scores(
         for path, score, details in batch:
             pd = _build_photo_data(str(path), Path("/"))
             if pd is None:
-                pd = {
-                    "path": str(Path(path).resolve()),
-                    "label": Path(path).name,
-                }
+                pd = {"path": str(Path(path).resolve()), "label": Path(path).name}
             photos.append(pd)
         if photos:
-            pages.append({
-                "style": "duo",
-                "data": {"photos": photos, "title": ""},
-            })
+            pages.append({"style": "grille", "data": {"photos": photos, "title": ""}})
 
-    # 4. Pages grille (80% restant) + collages périodiques
     grille_photos = dispatch.get("grille", [])
-    batch_size = 6  # 6 photos par page en grille
+    batch_size = 6
     grid_counter = 0
 
     for i in range(0, len(grille_photos), batch_size):
@@ -549,29 +684,18 @@ def arrange_pages_from_scores(
         for path, score, details in batch:
             pd = _build_photo_data(str(path), Path("/"))
             if pd is None:
-                pd = {
-                    "path": str(Path(path).resolve()),
-                    "label": Path(path).name,
-                }
+                pd = {"path": str(Path(path).resolve()), "label": Path(path).name}
             photos.append(pd)
 
         if not photos:
             continue
 
-        # Insérer un collage toutes les `collage_every` pages grille
         if collage_every > 0 and grid_counter > 0 and grid_counter % collage_every == 0 and len(photos) >= 4:
-            pages.append({
-                "style": "collage",
-                "data": {"photos": photos, "title": ""},
-            })
+            pages.append({"style": "grille", "data": {"photos": photos, "title": ""}})
         else:
-            pages.append({
-                "style": "grille",
-                "data": {"photos": photos, "title": ""},
-            })
+            pages.append({"style": "grille", "data": {"photos": photos, "title": ""}})
         grid_counter += 1
 
-    # 5. Pages typographiques si des récits sont fournis
     if recits:
         for entry in recits:
             rtype = entry.get("type", "")
@@ -591,17 +715,14 @@ def arrange_pages_from_scores(
                     },
                 })
 
-    # 6. Page de crédits
     pages.append({"style": "credits", "data": {"album": ALBUM}})
-
     return pages
 
 
+# ── Utilitaires PDF / HTML ──────────────────────────────────────────
+
 def ensure_multiple_of_4(pages):
-    """
-    Ajoute des pages blanches pour que le nombre total de pages
-    soit un multiple de 4 (contrainte de reliure).
-    """
+    """Ajoute des pages blanches pour que le total soit multiple de 4."""
     n = len(pages)
     remainder = n % 4
     if remainder == 0:
@@ -609,23 +730,13 @@ def ensure_multiple_of_4(pages):
 
     needed = 4 - remainder
     for _ in range(needed):
-        pages.insert(-1, {"style": "blank", "data": {}})  # avant les crédits
+        pages.insert(-1, {"style": "blank", "data": {}})
 
     return pages
 
 
 def desaturate_photo(image_path, amount=10):
-    """
-    Désature une photo de `amount` pourcents (0 = pas de changement, 100 = N&B).
-    Appliquée avant l'injection HTML pour compenser la sursaturation à l'impression.
-
-    Args:
-        image_path: chemin absolu vers le fichier image
-        amount: pourcentage de désaturation (0-100)
-
-    Returns:
-        Chemin vers l'image (potentiellement modifiée en place ou copie)
-    """
+    """Désature une photo de `amount` pourcents."""
     if amount <= 0:
         return image_path
 
@@ -636,12 +747,10 @@ def desaturate_photo(image_path, amount=10):
         if img.mode != "RGB":
             img = img.convert("RGB")
 
-        # amount=10 → saturation réduite de 10% → facteur 0.9
         factor = 1.0 - (amount / 100.0)
         enhancer = ImageEnhance.Color(img)
         img_desat = enhancer.enhance(factor)
 
-        # Sauvegarder dans un cache pour ne pas modifier l'original
         cache_dir = OUTPUT_DIR / ".desat_cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
         cache_name = Path(image_path).stem + f"_desat{amount}.jpg"
@@ -655,10 +764,7 @@ def desaturate_photo(image_path, amount=10):
 
 
 def preprocess_photos(pages):
-    """
-    Applique la désaturation sur toutes les photos référencées dans les pages.
-    Modifie les chemins des photos en place.
-    """
+    """Applique la désaturation sur toutes les photos référencées."""
     ds_amount = PALETTE.get("desaturation", 0)
     if ds_amount <= 0:
         return
@@ -669,19 +775,16 @@ def preprocess_photos(pages):
     for page in pages:
         data = page.get("data", {})
 
-        # Cas 1: page.photo (heroique, typographique, hero_texte)
         if "photo" in data and data["photo"] and "path" in data["photo"]:
             data["photo"]["path"] = desaturate_photo(data["photo"]["path"], ds_amount)
             count += 1
 
-        # Cas 2: page.photos (duo, grille, collage, polaroid)
         if "photos" in data:
             for p in data["photos"]:
                 if "path" in p:
                     p["path"] = desaturate_photo(p["path"], ds_amount)
                     count += 1
 
-        # Cas 3: page.frames (video_extrait, video_54)
         if "frames" in data:
             for f in data["frames"]:
                 if "path" in f:
@@ -699,7 +802,6 @@ def generate_html(pages):
 
     template = env.get_template("base.html")
 
-    # Préparer les pages avec numérotation
     page_list = []
     for i, page in enumerate(pages):
         page_list.append({
@@ -740,6 +842,8 @@ def scan_photos(photos_dir=None):
     return photos
 
 
+# ── Main ────────────────────────────────────────────────────────────
+
 def main():
     parser = argparse.ArgumentParser(description="Générateur d'album photo PDF")
     parser.add_argument("--photos", "-p", help="Dossier contenant les photos")
@@ -754,6 +858,10 @@ def main():
                         help="Activer le scoring IA des photos (auto si --photos)")
     parser.add_argument("--no-scoring", action="store_true",
                         help="Désactiver le scoring IA (mode batch classique)")
+    parser.add_argument("--no-smartcrop", action="store_true",
+                        help="Désactiver le smart crop")
+    parser.add_argument("--window-size", type=int, default=40,
+                        help="Taille de la fenêtre glissante (défaut: 40)")
     args = parser.parse_args()
 
     # Scanner les photos
@@ -766,7 +874,6 @@ def main():
         photo_files = scan_photos()
 
     # Déterminer si on active le scoring
-    # --scoring explicite OU --photos sans --no-scoring → scoring auto
     use_scoring = args.scoring
     if use_scoring is None:
         use_scoring = bool(args.photos) and not args.no_scoring
@@ -775,19 +882,18 @@ def main():
     if args.recits:
         recits = load_recits(args.recits)
     elif args.photos:
-        recits = None  # mode auto : arrange_pages utilise photo_files
+        recits = None
     else:
-        recits = load_recits()  # mode démo : récits par défaut
+        recits = load_recits()
 
-    # Déterminer la racine des photos (utilisateur ou projet)
+    # Déterminer la racine des photos
     photos_root = Path(args.photos).resolve() if args.photos else PHOTOS_DIR
 
-    # Scoring IA + dispatch intelligent
+    # Scoring IA + nouveau dispatch v3
     scoring_report_path = None
     if use_scoring:
         print("🧠 Scoring IA des photos en cours...")
         scorer = PhotoScorer()
-        dispatcher = PhotoDispatcher()
 
         # Trier par EXIF pour l'ordre chronologique
         photo_files = sort_by_exif_date(photo_files)
@@ -805,27 +911,43 @@ def main():
 
         print(f"   ✓ {len(photo_scores)}/{len(photo_files)} photos notées")
 
-        # Dispatch 7/13/80
-        dispatch = dispatcher.dispatch(photo_scores)
-        n_h = len(dispatch["heroique"])
-        n_d = len(dispatch["duo"])
-        n_g = len(dispatch["grille"])
-        print(f"   📊 Dispatch : {n_h} héroïque, {n_d} duo, {n_g} grille")
+        # ── Smart crop + rotation EXIF ──
+        if not args.no_smartcrop:
+            crop_dir = OUTPUT_DIR / ".crop_cache"
+            photo_scores = preprocess_scored_photos(photo_scores, crop_dir=crop_dir)
+        else:
+            # Appliquer seulement la rotation EXIF
+            photo_scores = preprocess_scored_photos(photo_scores, crop_dir=None)
 
         # Rapport JSON
         scoring_report_path = OUTPUT_DIR / "scoring_report.json"
         scoring_report_path.parent.mkdir(parents=True, exist_ok=True)
-        export_scoring_report(photo_scores, dispatch, scoring_report_path)
+        # Reconstruction du dispatch pour le rapport
+        n_h = sum(1 for _ in photo_scores)  # approximatif
+        export_scoring_report(
+            photo_scores,
+            {"heroique": [], "duo": [], "grille": []},
+            scoring_report_path,
+        )
         print(f"   📋 Rapport : {scoring_report_path}")
 
-        # Arranger les pages avec le dispatch
-        pages = arrange_pages_from_scores(
-            dispatch, photos_root, recits=recits
+        # ── Nouveau dispatch v3 : fenêtre glissante ──
+        pages = arrange_pages_from_scores_v3(
+            photo_scores,
+            window_size=args.window_size,
         )
+        print(f"   📊 Dispatch v3 (fenêtre {args.window_size})")
+
     else:
         # Mode classique (sans scoring)
         pages = arrange_pages(photo_files, recits, photos_root=photos_root)
 
+    # Stats
+    styles = {}
+    for p in pages:
+        s = p.get("style", "?")
+        styles[s] = styles.get(s, 0) + 1
+    print(f"   🎨 Répartition : {dict(sorted(styles.items()))}")
     print(f"📄 Pages à générer : {len(pages)}")
 
     # Checklist

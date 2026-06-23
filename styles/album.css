@@ -286,13 +286,76 @@ html, body {
 .grille-6 .grille-item { width: calc(33.333% - 2mm); }
 
 /* ============================================================= */
-/*  4. COLLAGE — 5+ photos disposition organique                 */
+/*  4. QUATUOR — 3 photos (meilleure 2× plus grande) + mois      */
 /* ============================================================= */
-.collage-content {
+.quatuor-content {
   display: flex;
   flex-direction: column;
 }
-.collage-title {
+.quatuor-title {
+  font-family: "DM Serif Display", serif;
+  font-size: 12pt;
+  color: #3a2a1a;
+  text-align: center;
+  margin-bottom: 3mm;
+  font-weight: 400;
+}
+.quatuor-grid {
+  flex: 1;
+  display: flex;
+  gap: 3mm;
+}
+.quatuor-hero {
+  flex: 2;
+  background: #ffffff;
+  padding: 2mm;
+  box-shadow: 0 0.3mm 0.8mm rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.quatuor-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.quatuor-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+}
+.quatuor-side-top,
+.quatuor-side-bottom {
+  flex: 1;
+  background: #ffffff;
+  padding: 2mm;
+  box-shadow: 0 0.3mm 0.8mm rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.quatuor-side-top img,
+.quatuor-side-bottom img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.quatuor-month-block {
+  font-family: "DM Serif Display", serif;
+  font-size: 11pt;
+  color: #8a6a3a;
+  text-align: center;
+  margin-top: 4mm;
+  letter-spacing: 1.5pt;
+}
+
+/* ============================================================= */
+/*  5. COLLAGE RECTPACK — 6-9 photos packées automatiquement     */
+/* ============================================================= */
+.collage-rp-content {
+  display: flex;
+  flex-direction: column;
+}
+.collage-rp-title {
   font-family: "DM Serif Display", serif;
   font-size: 11pt;
   color: #3a2a1a;
@@ -300,43 +363,28 @@ html, body {
   margin-bottom: 3mm;
   font-weight: 400;
 }
-.collage-grid {
+.collage-rp-grid {
   flex: 1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5mm;
-  align-content: flex-start;
-  justify-content: center;
-}
-.collage-item {
   position: relative;
+  width: 100%;
+  height: 100%;
+}
+.collage-rp-item {
+  position: absolute;
   background: #ffffff;
   padding: 1.5mm;
   box-shadow: 0 0.2mm 0.5mm rgba(0,0,0,0.10);
   overflow: hidden;
 }
-.collage-item img {
+.collage-rp-item img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-/* Taille variable des items du collage — plus organique */
-.collage-item-1 { width: 55%; height: 50%; }
-.collage-item-2 { width: 40%; height: 45%; }
-.collage-item-3 { width: 45%; height: 45%; }
-.collage-item-4 { width: 50%; height: 50%; }
-.collage-item-5 { width: 35%; height: 40%; }
-.collage-item-6 { width: 40%; height: 40%; }
-.collage-item-7 { width: 55%; height: 50%; }
-.collage-item-8 { width: 30%; height: 38%; }
-.collage-item-9 { width: 30%; height: 38%; }
-.collage-item-10 { width: 50%; height: 45%; }
-/* Fallback for items beyond 10 (modulo cycling in template handles this) */
-[class*="collage-item"] { width: 40%; height: 42%; }
 
 /* ============================================================= */
-/*  5. TYPOGRAPHIQUE — Texte + 0-1 photo, pause / citation       */
+/*  6. TYPOGRAPHIQUE — Texte + 0-1 photo, pause / citation       */
 /* ============================================================= */
 .typo-page { background: #fefcf5; }
 .typo-content {
