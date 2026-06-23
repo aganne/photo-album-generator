@@ -4,7 +4,9 @@ Générateur d'album photo PDF — Template Jinja2 → HTML → WeasyPrint → P
 
 Usage:
   python3 generate.py                       # Génère avec les données par défaut
-  python3 generate.py --photos ./photos     # Spécifie un dossier photos
+  python3 generate.py --photos ./photos     # Scoring IA auto + dispatch 7/13/80
+  python3 generate.py --photos ./photos --no-scoring  # Mode batch classique
+  python3 generate.py --photos ./photos --scoring     # Forcer le scoring
   python3 generate.py --recits recits.json  # Fichier JSON des récits
   python3 generate.py --output mon_album.pdf
   python3 generate.py --html-only           # Génère seulement le HTML (pas de PDF)
@@ -22,6 +24,7 @@ import random
 import argparse
 from pathlib import Path
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 # Ajouter le projet au path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -32,6 +35,11 @@ from weasyprint import HTML
 from album_generator.config import (
     PALETTE, FONTS, ALBUM, PAGE_STYLES,
     PAGE_WIDTH_MM, PAGE_HEIGHT_MM, BLEED_MM, SAFE_MARGIN_MM,
+)
+from album_generator.scoring import (
+    PhotoScorer, PhotoDispatcher, extract_exif_date,
+    sort_by_exif_date, group_photos_by_exif_month,
+    export_scoring_report, find_micro_events,
 )
 
 
@@ -166,17 +174,25 @@ def _font_available(font_name):
     return has_regular and has_bold and has_italic
 
 
-def group_photos_by_month(photo_files):
+def group_photos_by_month(photo_files, use_exif=True):
     """
-    Trie les photos par mois (basé sur nom de fichier ou metadata).
+    Trie les photos par mois (basé sur EXIF si disponible, sinon nom de fichier).
+
     Retourne une liste de (mois, [photos]) triée chronologiquement.
 
-    On essaie d'extraire la date depuis le nom de fichier.
-    Format iPhone: IMG_YYYYMMDD_HHMMSS.jpg
-    Format appareil: DSC_1234.jpg (fallback: modification time)
+    On essaie d'extraire la date depuis EXIF en priorité.
+    Format fallback iPhone: IMG_YYYYMMDD_HHMMSS.jpg
+    Format fallback appareil: DSC_1234.jpg (modification time)
     """
     from collections import OrderedDict
     import re
+
+    # Si EXIF disponible, l'utiliser en priorité
+    if use_exif:
+        try:
+            return group_photos_by_exif_month(photo_files)
+        except Exception:
+            pass  # fallback au nom de fichier
 
     months = OrderedDict()
     month_names = [
@@ -191,7 +207,7 @@ def group_photos_by_month(photo_files):
         month_idx = None
 
         # IMG_YYYYMMDD pattern (iPhone)
-        m = re.search(r'(\d{4})(\d{2})(\d{2})', stem)
+        m = re.search(r'(\\d{4})(\\d{2})(\\d{2})', stem)
         if m:
             month_idx = int(m.group(2)) - 1  # 0-based
         else:
@@ -467,6 +483,120 @@ def arrange_pages(photo_files, recits=None, photos_root=None):
     return pages
 
 
+def arrange_pages_from_scores(
+    dispatch: Dict[str, List[Tuple[str, float, Dict[str, float]]]],
+    photos_root: Path,
+    recits: Optional[List[Dict]] = None,
+    collage_every: int = 4,
+) -> List[Dict]:
+    """Organise les pages à partir des scores et du dispatch 7/13/80.
+
+    Args:
+        dispatch: résultat de PhotoDispatcher.dispatch() —
+                  dict avec clés "heroique", "duo", "grille".
+        photos_root: dossier racine pour résoudre les chemins.
+        recits: récits optionnels (pour les pages typographiques intercalées).
+        collage_every: insérer une page collage toutes les N pages grille.
+
+    Returns:
+        Liste de dicts représentant chaque page.
+    """
+    pages: List[Dict] = []
+
+    # 1. Page de garde
+    pages.append({"style": "titre", "data": {"album": ALBUM}})
+
+    # 2. Pages héroïques (top 7%)
+    for path, score, details in dispatch.get("heroique", []):
+        photo_data = _build_photo_data(str(path), Path("/"))
+        if photo_data is None:
+            photo_data = {
+                "path": str(Path(path).resolve()),
+                "label": Path(path).name,
+            }
+        pages.append({
+            "style": "heroique",
+            "data": {"photo": photo_data},
+        })
+
+    # 3. Pages duo (7-20%)
+    duo_photos = dispatch.get("duo", [])
+    for i in range(0, len(duo_photos), 2):
+        batch = duo_photos[i:i + 2]
+        photos = []
+        for path, score, details in batch:
+            pd = _build_photo_data(str(path), Path("/"))
+            if pd is None:
+                pd = {
+                    "path": str(Path(path).resolve()),
+                    "label": Path(path).name,
+                }
+            photos.append(pd)
+        if photos:
+            pages.append({
+                "style": "duo",
+                "data": {"photos": photos, "title": ""},
+            })
+
+    # 4. Pages grille (80% restant) + collages périodiques
+    grille_photos = dispatch.get("grille", [])
+    batch_size = 6  # 6 photos par page en grille
+    grid_counter = 0
+
+    for i in range(0, len(grille_photos), batch_size):
+        batch = grille_photos[i:i + batch_size]
+        photos = []
+        for path, score, details in batch:
+            pd = _build_photo_data(str(path), Path("/"))
+            if pd is None:
+                pd = {
+                    "path": str(Path(path).resolve()),
+                    "label": Path(path).name,
+                }
+            photos.append(pd)
+
+        if not photos:
+            continue
+
+        # Insérer un collage toutes les `collage_every` pages grille
+        if collage_every > 0 and grid_counter > 0 and grid_counter % collage_every == 0 and len(photos) >= 4:
+            pages.append({
+                "style": "collage",
+                "data": {"photos": photos, "title": ""},
+            })
+        else:
+            pages.append({
+                "style": "grille",
+                "data": {"photos": photos, "title": ""},
+            })
+        grid_counter += 1
+
+    # 5. Pages typographiques si des récits sont fournis
+    if recits:
+        for entry in recits:
+            rtype = entry.get("type", "")
+            if rtype == "typographique":
+                rel_path = entry.get("photo", "")
+                photo_data = _build_photo_data(rel_path, photos_root) if rel_path else None
+                pages.append({
+                    "style": "typographique",
+                    "data": {
+                        "photo": photo_data,
+                        "recit": {
+                            "title": entry.get("title", ""),
+                            "date": entry.get("date", ""),
+                            "text": entry.get("text", ""),
+                            "quote": entry.get("quote", False),
+                        },
+                    },
+                })
+
+    # 6. Page de crédits
+    pages.append({"style": "credits", "data": {"album": ALBUM}})
+
+    return pages
+
+
 def ensure_multiple_of_4(pages):
     """
     Ajoute des pages blanches pour que le nombre total de pages
@@ -620,6 +750,10 @@ def main():
                         help="Générer seulement le HTML (pas de PDF)")
     parser.add_argument("--checklist", action="store_true",
                         help="Afficher la checklist pré-génération sans générer")
+    parser.add_argument("--scoring", action="store_true", default=None,
+                        help="Activer le scoring IA des photos (auto si --photos)")
+    parser.add_argument("--no-scoring", action="store_true",
+                        help="Désactiver le scoring IA (mode batch classique)")
     args = parser.parse_args()
 
     # Scanner les photos
@@ -631,9 +765,13 @@ def main():
         create_mock_photos()
         photo_files = scan_photos()
 
+    # Déterminer si on active le scoring
+    # --scoring explicite OU --photos sans --no-scoring → scoring auto
+    use_scoring = args.scoring
+    if use_scoring is None:
+        use_scoring = bool(args.photos) and not args.no_scoring
+
     # Charger les récits
-    # Si --photos est spécifié sans --recits, on passe en mode auto
-    # (sinon les récits par défaut écrasent les photos de l'utilisateur)
     if args.recits:
         recits = load_recits(args.recits)
     elif args.photos:
@@ -644,8 +782,50 @@ def main():
     # Déterminer la racine des photos (utilisateur ou projet)
     photos_root = Path(args.photos).resolve() if args.photos else PHOTOS_DIR
 
-    # Organiser les pages
-    pages = arrange_pages(photo_files, recits, photos_root=photos_root)
+    # Scoring IA + dispatch intelligent
+    scoring_report_path = None
+    if use_scoring:
+        print("🧠 Scoring IA des photos en cours...")
+        scorer = PhotoScorer()
+        dispatcher = PhotoDispatcher()
+
+        # Trier par EXIF pour l'ordre chronologique
+        photo_files = sort_by_exif_date(photo_files)
+
+        # Scorer chaque photo
+        photo_scores = []
+        for i, fp in enumerate(photo_files):
+            try:
+                total, details = scorer.score(str(fp))
+                photo_scores.append((str(fp), total, details))
+            except Exception as exc:
+                print(f"   ⚠️  Score échoué pour {fp.name}: {exc}")
+            if (i + 1) % 20 == 0:
+                print(f"   ... {i + 1}/{len(photo_files)} photos notées")
+
+        print(f"   ✓ {len(photo_scores)}/{len(photo_files)} photos notées")
+
+        # Dispatch 7/13/80
+        dispatch = dispatcher.dispatch(photo_scores)
+        n_h = len(dispatch["heroique"])
+        n_d = len(dispatch["duo"])
+        n_g = len(dispatch["grille"])
+        print(f"   📊 Dispatch : {n_h} héroïque, {n_d} duo, {n_g} grille")
+
+        # Rapport JSON
+        scoring_report_path = OUTPUT_DIR / "scoring_report.json"
+        scoring_report_path.parent.mkdir(parents=True, exist_ok=True)
+        export_scoring_report(photo_scores, dispatch, scoring_report_path)
+        print(f"   📋 Rapport : {scoring_report_path}")
+
+        # Arranger les pages avec le dispatch
+        pages = arrange_pages_from_scores(
+            dispatch, photos_root, recits=recits
+        )
+    else:
+        # Mode classique (sans scoring)
+        pages = arrange_pages(photo_files, recits, photos_root=photos_root)
+
     print(f"📄 Pages à générer : {len(pages)}")
 
     # Checklist
