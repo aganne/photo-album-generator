@@ -50,7 +50,11 @@ def _ensure_model(model_name: str) -> str:
         import tempfile
         tmp = tempfile.NamedTemporaryFile(dir=_MODEL_CACHE_DIR, delete=False, suffix=ext)
         try:
-            urllib.request.urlretrieve(url, tmp.name)
+            import urllib.request as ureq
+            resp = ureq.urlopen(url, timeout=30)
+            with open(tmp.name, 'wb') as f_tmp:
+                f_tmp.write(resp.read())
+            resp.close()
             tmp.close()
             os.replace(tmp.name, local_path)
         except Exception:
