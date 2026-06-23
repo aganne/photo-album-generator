@@ -47,7 +47,16 @@ def _ensure_model(model_name: str) -> str:
 
     if not local_path.exists():
         print(f"   ⬇️  Téléchargement du modèle {model_name}...")
-        urllib.request.urlretrieve(url, local_path)
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(dir=_MODEL_CACHE_DIR, delete=False, suffix=ext)
+        try:
+            urllib.request.urlretrieve(url, tmp.name)
+            tmp.close()
+            os.replace(tmp.name, local_path)
+        except Exception:
+            tmp.close()
+            os.unlink(tmp.name)
+            raise
 
     return str(local_path)
 
@@ -510,8 +519,8 @@ def extract_exif_date(image_path: str | Path) -> Optional[datetime]:
     from PIL import Image
 
     try:
-        img = Image.open(image_path)
-        exif = img._getexif()
+        with Image.open(image_path) as img:
+            exif = img._getexif()
         if not exif:
             return None
 
