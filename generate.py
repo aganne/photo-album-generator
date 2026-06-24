@@ -656,7 +656,7 @@ def preprocess_scored_photos(
             crop_dir.mkdir(parents=True, exist_ok=True)
             # Inclure un hash du chemin complet pour éviter les
             # collisions entre fichiers de même nom dans des dossiers différents.
-            path_hash = hashlib.sha1(
+            path_hash = hashlib.sha256(
                 str(Path(current_path).resolve()).encode()
             ).hexdigest()[:12]
             crop_out = str(

@@ -472,8 +472,17 @@ class PhotoScorer:
         # ── Mutualisation : réutiliser les visages du scoring ──
         cache_key = str(image_path)
         if cache_key in PhotoScorer._face_cache:
-            faces, _ = PhotoScorer._face_cache[cache_key]
+            cached_faces, cached_shape = PhotoScorer._face_cache[cache_key]
+            if cached_shape == img.shape:
+                faces = cached_faces
+            else:
+                # Image redimensionnée ou réécrite → ne pas utiliser le cache obsolète
+                del PhotoScorer._face_cache[cache_key]
+                faces = None
         else:
+            faces = None
+
+        if faces is None:
             fd_model = _ensure_model("face_detector")
             fd_options = vision.FaceDetectorOptions(
                 base_options=python.BaseOptions(model_asset_path=fd_model),
@@ -556,7 +565,7 @@ class PhotoScorer:
             import hashlib
             src_name = Path(image_path).name
             src_path = str(Path(image_path).resolve())
-            path_hash = hashlib.sha1(src_path.encode()).hexdigest()[:12]
+            path_hash = hashlib.sha256(src_path.encode()).hexdigest()[:12]
             rotated_name = f"rotated_{path_hash}_{src_name}"
             out_path = str(output_dir / rotated_name)
             img.save(out_path)
