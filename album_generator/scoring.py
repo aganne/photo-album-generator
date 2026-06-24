@@ -513,14 +513,25 @@ class PhotoScorer:
         return False
 
     @staticmethod
-    def fix_exif_rotation(image_path: str | Path) -> bool:
-        """Corrige la rotation EXIF d'une image en place.
+    def fix_exif_rotation(image_path: str | Path, output_dir: str | Path) -> str | None:
+        """Corrige la rotation EXIF d'une image sans modifier l'original.
 
         Lit la balise EXIF 0x0112 (Orientation) et applique la
-        rotation correspondante avec Pillow.  Retourne True si
-        une correction a été appliquée.
+        rotation correspondante avec Pillow.  Écrit une copie
+        pivotée dans `output_dir` et retourne le nouveau chemin.
+        Retourne None si aucune correction n'est nécessaire.
+
+        Args:
+            image_path: chemin de l'image source (jamais modifié)
+            output_dir: répertoire où écrire la copie pivotée
+
+        Returns:
+            Chemin de la copie pivotée, ou None si pas de rotation.
         """
         from PIL import Image
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             with Image.open(image_path) as img:
@@ -528,7 +539,7 @@ class PhotoScorer:
                 orientation = exif.get(0x0112)
 
             if orientation is None:
-                return False
+                return None
 
             # Rouvrir pour modification (Image.open en with bloque l'écriture)
             img = Image.open(image_path)
@@ -540,13 +551,16 @@ class PhotoScorer:
                 img = img.rotate(90, expand=True)
             else:
                 img.close()
-                return False
+                return None
 
-            img.save(image_path)
+            src_name = Path(image_path).name
+            rotated_name = f"rotated_{src_name}"
+            out_path = str(output_dir / rotated_name)
+            img.save(out_path)
             img.close()
-            return True
+            return out_path
         except (OSError, IOError, AttributeError, KeyError):
-            return False
+            return None
 
 
 class PhotoDispatcher:

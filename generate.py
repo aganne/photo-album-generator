@@ -23,6 +23,7 @@ import os
 import sys
 import json
 import random
+import hashlib
 import argparse
 from pathlib import Path
 from datetime import datetime
@@ -186,7 +187,7 @@ def group_photos_by_month(photo_files, use_exif=True):
         stem = fp.stem
         month_idx = None
 
-        m = re.search(r'(\\d{4})(\\d{2})(\\d{2})', stem)
+        m = re.search(r'(\d{4})(\d{2})(\d{2})', stem)
         if m:
             month_idx = int(m.group(2)) - 1
         else:
@@ -292,7 +293,10 @@ def _layout_rectpack_collage(
             photos.append({
                 "path": str(Path(path).resolve()),
                 "label": Path(path).name,
-                "left": 5, "top": 5, "width": 40, "height": 40,
+                "left": 5 + (idx % 3) * 31,
+                "top": 5 + (idx // 3) * 31,
+                "width": 40,
+                "height": 40,
             })
 
     return photos
@@ -324,6 +328,9 @@ def arrange_pages_from_scores_v3(
         Liste de dicts représentant chaque page.
     """
     pages: List[Dict] = []
+
+    if window_size <= 0:
+        raise ValueError("window_size must be > 0")
 
     # 1. Page de garde
     pages.append({"style": "titre", "data": {"album": ALBUM}})
@@ -607,9 +614,13 @@ def preprocess_scored_photos(
 ) -> List[Tuple[str, float, Dict[str, float]]]:
     """Applique smart_crop et fix_exif_rotation aux photos notées.
 
+    La rotation EXIF écrit des copies pivotées dans un cache,
+    sans jamais modifier les fichiers source originaux.
+
     Args:
         photo_scores: liste de (path, score, details)
-        crop_dir: dossier où sauvegarder les crops (None = pas de crop)
+        crop_dir: dossier où sauvegarder crops et rotations
+                  (None = rotation seulement, dans un cache temporaire)
 
     Returns:
         Nouvelle liste avec les chemins mis à jour après crop/rotation.
@@ -618,17 +629,39 @@ def preprocess_scored_photos(
     rotated = 0
     cropped = 0
 
+    # Répertoire cache pour la rotation EXIF
+    rotation_dir = crop_dir if crop_dir is not None else Path("/tmp/album_exif_cache")
+
     for path, score, details in photo_scores:
         current_path = path
 
-        # 1. Rotation EXIF (corrige l'orientation en place)
-        if PhotoScorer.fix_exif_rotation(current_path):
+        # 1. Rotation EXIF (copie dans cache, ne modifie PAS l'original)
+        rotated_path = PhotoScorer.fix_exif_rotation(current_path, rotation_dir)
+        if rotated_path is not None:
+            # Invalider le cache visages : les coordonnées de l'image
+            # originale ne sont plus valides après rotation.
+            cache_key = str(Path(path).resolve())
+            PhotoScorer._face_cache.pop(cache_key, None)
+            current_path = rotated_path
             rotated += 1
 
         # 2. Smart crop (si activé)
         if crop_dir is not None:
+            # Préserver la date EXIF avant crop (le fichier croppé
+            # perd ses métadonnées, ce qui casse le groupement par mois).
+            original_date = extract_exif_date(current_path)
+            if original_date and "original_exif_date" not in details:
+                details["original_exif_date"] = original_date.isoformat()
+
             crop_dir.mkdir(parents=True, exist_ok=True)
-            crop_out = str(crop_dir / f"crop_{Path(current_path).name}")
+            # Inclure un hash du chemin complet pour éviter les
+            # collisions entre fichiers de même nom dans des dossiers différents.
+            path_hash = hashlib.sha1(
+                str(Path(current_path).resolve()).encode()
+            ).hexdigest()[:12]
+            crop_out = str(
+                crop_dir / f"crop_{path_hash}_{Path(current_path).name}"
+            )
             if PhotoScorer.smart_crop(current_path, crop_out):
                 current_path = crop_out
                 cropped += 1
@@ -919,24 +952,42 @@ def main():
             # Appliquer seulement la rotation EXIF
             photo_scores = preprocess_scored_photos(photo_scores, crop_dir=None)
 
-        # Rapport JSON
-        scoring_report_path = OUTPUT_DIR / "scoring_report.json"
-        scoring_report_path.parent.mkdir(parents=True, exist_ok=True)
-        # Reconstruction du dispatch pour le rapport
-        n_h = sum(1 for _ in photo_scores)  # approximatif
-        export_scoring_report(
-            photo_scores,
-            {"heroique": [], "duo": [], "grille": []},
-            scoring_report_path,
-        )
-        print(f"   📋 Rapport : {scoring_report_path}")
-
         # ── Nouveau dispatch v3 : fenêtre glissante ──
         pages = arrange_pages_from_scores_v3(
             photo_scores,
             window_size=args.window_size,
         )
         print(f"   📊 Dispatch v3 (fenêtre {args.window_size})")
+
+        # Rapport JSON — reconstruire le dispatch depuis les pages v3
+        scoring_report_path = OUTPUT_DIR / "scoring_report.json"
+        scoring_report_path.parent.mkdir(parents=True, exist_ok=True)
+        # Index résolu : chemin absolu → (path, score, details)
+        score_by_path: Dict[str, Tuple] = {}
+        for ps in photo_scores:
+            score_by_path[str(Path(ps[0]).resolve())] = ps
+        dispatch: Dict[str, List] = {"heroique": [], "duo": [], "grille": []}
+        for page in pages:
+            style = page.get("style", "")
+            if style in ("titre", "credits"):
+                continue
+            photos_in_page: List[Dict] = []
+            if style == "heroique":
+                photos_in_page = [page["data"]["photo"]]
+            else:
+                photos_in_page = page["data"].get("photos", [])
+            for photo in photos_in_page:
+                resolved = str(Path(photo["path"]).resolve())
+                if resolved in score_by_path:
+                    if style == "heroique":
+                        dispatch["heroique"].append(score_by_path[resolved])
+                    elif style == "grille":
+                        dispatch["grille"].append(score_by_path[resolved])
+                    else:
+                        # quatuor, collage_rectpack → duo
+                        dispatch["duo"].append(score_by_path[resolved])
+        export_scoring_report(photo_scores, dispatch, scoring_report_path)
+        print(f"   📋 Rapport : {scoring_report_path}")
 
     else:
         # Mode classique (sans scoring)
