@@ -553,8 +553,11 @@ class PhotoScorer:
                 img.close()
                 return None
 
+            import hashlib
             src_name = Path(image_path).name
-            rotated_name = f"rotated_{src_name}"
+            src_path = str(Path(image_path).resolve())
+            path_hash = hashlib.sha1(src_path.encode()).hexdigest()[:12]
+            rotated_name = f"rotated_{path_hash}_{src_name}"
             out_path = str(output_dir / rotated_name)
             img.save(out_path)
             img.close()

@@ -295,8 +295,8 @@ def _layout_rectpack_collage(
                 "label": Path(path).name,
                 "left": 5 + (idx % 3) * 31,
                 "top": 5 + (idx // 3) * 31,
-                "width": 40,
-                "height": 40,
+                "width": 28,
+                "height": 28,
             })
 
     return photos
@@ -630,7 +630,7 @@ def preprocess_scored_photos(
     cropped = 0
 
     # Répertoire cache pour la rotation EXIF
-    rotation_dir = crop_dir if crop_dir is not None else Path("/tmp/album_exif_cache")
+    rotation_dir = crop_dir if crop_dir is not None else OUTPUT_DIR / ".exif_cache"
 
     for path, score, details in photo_scores:
         current_path = path
