@@ -5,3 +5,4 @@ opencv-python>=4.8.0
 mediapipe>=0.10.0
 brisque>=0.2.0
 numpy>=1.24.0
+rectpack>=0.2.0

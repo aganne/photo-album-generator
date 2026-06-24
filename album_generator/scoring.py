@@ -86,6 +86,10 @@ class PhotoScorer:
     l'initialisation), puis réutilisés pour chaque photo.
     """
 
+    # Cache global (classe) pour mutualiser les détections entre
+    # le scoring et le smart_crop.  Format : path → (faces_list, img_shape)
+    _face_cache: Dict[str, Tuple[List[Any], Tuple[int, int, int]]] = {}
+
     def __init__(self) -> None:
         # Modèles téléchargés au premier usage
         fd_model = _ensure_model("face_detector")
@@ -152,6 +156,14 @@ class PhotoScorer:
         }
 
         total = sum(scores[k] * SCORE_WEIGHTS[k] for k in SCORE_WEIGHTS)
+
+        # ── Pénalité visage en bordure ──
+        edge_penalty = self._face_edge_penalty(img, faces)
+        total *= edge_penalty
+
+        # ── Cache pour smart_crop ──
+        PhotoScorer._face_cache[str(path)] = (list(faces), img.shape)
+
         total = max(0.0, min(1.0, total))
 
         return total, scores
@@ -383,6 +395,34 @@ class PhotoScorer:
         s_mean = float(np.mean(hsv[:, :, 1]))
         return min(s_mean / 128.0, 1.0)
 
+    # ── Pénalité visage en bordure ──────────────────────────────
+
+    @staticmethod
+    def _face_edge_penalty(img: np.ndarray, faces: List[Any]) -> float:
+        """Pénalise les photos où un visage est trop proche du bord.
+
+        Si un visage est à moins de 5% du bord de l'image, la photo
+        est pénalisée (×0.3).  Sans visage détecté, pas de pénalité.
+        """
+        if not faces:
+            return 1.0
+
+        h, w = img.shape[:2]
+        margin_x = w * 0.05
+        margin_y = h * 0.05
+
+        for det in faces:
+            bbox = det.bounding_box
+            x1 = bbox.origin_x
+            y1 = bbox.origin_y
+            x2 = x1 + bbox.width
+            y2 = y1 + bbox.height
+
+            if x1 < margin_x or y1 < margin_y or x2 > (w - margin_x) or y2 > (h - margin_y):
+                return 0.3  # pénalité forte
+
+        return 1.0
+
     # ── Zone de sécurité visages (smart crop) ──────────────────────
 
     @staticmethod
@@ -429,18 +469,32 @@ class PhotoScorer:
         if img is None:
             return False
 
-        fd_model = _ensure_model("face_detector")
-        fd_options = vision.FaceDetectorOptions(
-            base_options=python.BaseOptions(model_asset_path=fd_model),
-            running_mode=vision.RunningMode.IMAGE,
-        )
-        with vision.FaceDetector.create_from_options(fd_options) as fd:
-            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-            result = fd.detect(mp_img)
-            if not result.detections:
-                return False
-            faces = result.detections
+        # ── Mutualisation : réutiliser les visages du scoring ──
+        cache_key = str(image_path)
+        if cache_key in PhotoScorer._face_cache:
+            cached_faces, cached_shape = PhotoScorer._face_cache[cache_key]
+            if cached_shape == img.shape:
+                faces = cached_faces
+            else:
+                # Image redimensionnée ou réécrite → ne pas utiliser le cache obsolète
+                del PhotoScorer._face_cache[cache_key]
+                faces = None
+        else:
+            faces = None
+
+        if faces is None:
+            fd_model = _ensure_model("face_detector")
+            fd_options = vision.FaceDetectorOptions(
+                base_options=python.BaseOptions(model_asset_path=fd_model),
+                running_mode=vision.RunningMode.IMAGE,
+            )
+            with vision.FaceDetector.create_from_options(fd_options) as fd:
+                rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                result = fd.detect(mp_img)
+                if not result.detections:
+                    return False
+                faces = result.detections
 
         region = PhotoScorer.face_safety_region(img, faces, padding=padding)
         if region is None:
@@ -466,6 +520,59 @@ class PhotoScorer:
             return True
 
         return False
+
+    @staticmethod
+    def fix_exif_rotation(image_path: str | Path, output_dir: str | Path) -> str | None:
+        """Corrige la rotation EXIF d'une image sans modifier l'original.
+
+        Lit la balise EXIF 0x0112 (Orientation) et applique la
+        rotation correspondante avec Pillow.  Écrit une copie
+        pivotée dans `output_dir` et retourne le nouveau chemin.
+        Retourne None si aucune correction n'est nécessaire.
+
+        Args:
+            image_path: chemin de l'image source (jamais modifié)
+            output_dir: répertoire où écrire la copie pivotée
+
+        Returns:
+            Chemin de la copie pivotée, ou None si pas de rotation.
+        """
+        from PIL import Image
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            with Image.open(image_path) as img:
+                exif = img._getexif() or {}
+                orientation = exif.get(0x0112)
+
+            if orientation is None:
+                return None
+
+            # Rouvrir pour modification (Image.open en with bloque l'écriture)
+            img = Image.open(image_path)
+            if orientation == 3:
+                img = img.rotate(180, expand=True)
+            elif orientation == 6:
+                img = img.rotate(270, expand=True)
+            elif orientation == 8:
+                img = img.rotate(90, expand=True)
+            else:
+                img.close()
+                return None
+
+            import hashlib
+            src_name = Path(image_path).name
+            src_path = str(Path(image_path).resolve())
+            path_hash = hashlib.sha256(src_path.encode()).hexdigest()[:12]
+            rotated_name = f"rotated_{path_hash}_{src_name}"
+            out_path = str(output_dir / rotated_name)
+            img.save(out_path)
+            img.close()
+            return out_path
+        except (OSError, IOError, AttributeError, KeyError):
+            return None
 
 
 class PhotoDispatcher:

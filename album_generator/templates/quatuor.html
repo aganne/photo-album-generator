@@ -1,0 +1,41 @@
+<!-- Page Quatuor — 3 photos (meilleure 2x plus grande) + bloc texte mois/année -->
+<div class="page">
+  <div class="page-bg"></div>
+  <div class="band-top"></div>
+  <div class="band-bottom"></div>
+  <div class="band-bottom-thin"></div>
+  <div class="content quatuor-content">
+    {% if page.title %}
+    <h3 class="quatuor-title">{{ page.title }}</h3>
+    {% endif %}
+    <div class="quatuor-grid">
+      {% if page.photos %}
+      <!-- Meilleure photo (2x plus grande, à gauche) -->
+      {% if page.photos|length >= 3 %}
+      <div class="quatuor-hero">
+        <img src="{{ page.photos[0].path }}" alt="{{ page.photos[0].label }}">
+      </div>
+      <div class="quatuor-side">
+        <div class="quatuor-side-top">
+          <img src="{{ page.photos[1].path }}" alt="{{ page.photos[1].label }}">
+        </div>
+        <div class="quatuor-side-bottom">
+          <img src="{{ page.photos[2].path }}" alt="{{ page.photos[2].label }}">
+        </div>
+      </div>
+      {% else %}
+      <!-- Fallback: moins de 3 photos -->
+      {% for photo in page.photos %}
+      <div class="quatuor-hero">
+        <img src="{{ photo.path }}" alt="{{ photo.label }}">
+      </div>
+      {% endfor %}
+      {% endif %}
+      {% endif %}
+    </div>
+    {% if page.month_label %}
+    <div class="quatuor-month-block">{{ page.month_label }}</div>
+    {% endif %}
+  </div>
+  <div class="page-number">— {{ page.page_num }} —</div>
+</div>
