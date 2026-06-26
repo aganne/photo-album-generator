@@ -940,17 +940,10 @@ def main():
             try:
                 total, details = scorer.score(str(fp))
                 return (str(fp), total, details)
-            except (OSError, IOError) as exc:
-                # Erreur fichier attendue (corrompu, illisible)
-                print(f"   ⚠️  Fichier illisible {fp.name}: {exc}")
-                return None
             except Exception as exc:
-                # Erreur inattendue du scorer — log mais ne pas dropper
-                import traceback
-                print(f"   ❌ Erreur scorer inattendue pour {fp.name}: {exc}")
-                traceback.print_exc()
-                # Retourner un score neutre plutôt que de perdre la photo
-                return (str(fp), 0.5, {"error": str(exc)})
+                print(f"   ⚠️  Score échoué pour {fp.name}: {exc}")
+                # Donner un score neutre au lieu de perdre la photo
+                return (str(fp), 0.5, {})
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(_score_one, fp): fp for fp in photo_files}
