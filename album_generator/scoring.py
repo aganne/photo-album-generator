@@ -225,25 +225,24 @@ class PhotoScorer:
 
     @staticmethod
     def _noise_quality(img: np.ndarray) -> float:
-        """Estime la qualité via le bruit local (remplace BRISQUE).
+        """Estime la qualité via le bruit local (remplace l'analyse de référence).
 
         Divise l'image en blocs de 16×16 px et calcule l'écart-type
         local.  Le 90ème percentile de ces écarts-types mesure le
         niveau de bruit — plus il est élevé, plus l'image est bruitée.
 
         L'image est réduite à 512 px de côté max avant analyse pour
-        un coût ~3 ms au lieu des ~25 s de BRISQUE.
+        un coût ~3 ms au lieu des ~25 s de l'analyse classique.
         """
         try:
-            # Downscale à 512 px max comme déclaré dans _NOISE_MAX_DIM
-            h_img, w_img = img.shape[:2]
-            max_side = max(h_img, w_img)
-            if max_side > PhotoScorer._NOISE_MAX_DIM:
-                scale = PhotoScorer._NOISE_MAX_DIM / max_side
-                new_w = int(w_img * scale)
-                new_h = int(h_img * scale)
-                img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            # Réduire si nécessaire
+            h, w = img.shape[:2]
+            if max(h, w) > PhotoScorer._NOISE_MAX_DIM:
+                scale = PhotoScorer._NOISE_MAX_DIM / max(h, w)
+                small = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+                gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             h, w = gray.shape
             block_size = 16
             n_blocks_h = h // block_size
