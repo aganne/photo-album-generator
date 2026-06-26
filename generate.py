@@ -291,13 +291,15 @@ def _layout_rectpack_collage(
             })
         else:
             # Fallback : la photo n'a pas pu être packée
+            fw = int(base_w)
+            fh = int(base_h)
             photos.append({
                 "path": str(Path(path).resolve()),
                 "label": Path(path).name,
-                "left": 5 + (idx % 3) * 31,
-                "top": 5 + (idx // 3) * 31,
-                "width": 28,
-                "height": 28,
+                "left": 5 + (idx % 3) * (fw + 5),
+                "top": 5 + (idx // 3) * (fh + 5),
+                "width": fw,
+                "height": fh,
             })
 
     return photos
