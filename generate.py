@@ -13,6 +13,7 @@ Usage:
   python3 generate.py --checklist           # Affiche la checklist avant génération
   python3 generate.py --no-smartcrop        # Désactiver le smart crop
   python3 generate.py --window-size 50      # Taille de fenêtre glissante (défaut: 40)
+  python3 generate.py --palette              # Palette automatique via Colormind
 
 Exemple:
   pip install -r requirements.txt
@@ -45,6 +46,7 @@ from album_generator.scoring import (
     sort_by_exif_date, group_photos_by_exif_month,
     export_scoring_report, find_micro_events,
 )
+from album_generator.colors import extract_palette, generate_dynamic_css, apply_palette_to_html
 
 
 # ── Chemins ─────────────────────────────────────────────────────────
@@ -830,11 +832,17 @@ def preprocess_photos(pages):
     print(f"   ✓ {count} photos traitées")
 
 
-def generate_html(pages):
-    """Génère le HTML complet à partir des pages."""
+def generate_html(pages, css_override=None):
+    """Génère le HTML complet à partir des pages.
+
+    Args:
+        pages: liste de dicts de pages.
+        css_override: CSS à utiliser à la place de album.css (optionnel,
+                      pour la palette dynamique Colormind).
+    """
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
     env.globals["album"] = ALBUM
-    env.globals["album_css"] = load_styles()
+    env.globals["album_css"] = css_override if css_override else load_styles()
 
     template = env.get_template("base.html")
 
@@ -898,6 +906,8 @@ def main():
                         help="Désactiver le smart crop")
     parser.add_argument("--window-size", type=int, default=40,
                         help="Taille de la fenêtre glissante (défaut: 40)")
+    parser.add_argument("--palette", action="store_true",
+                        help="Extraire la palette automatique via Colormind (sinon palette configurée)")
     args = parser.parse_args()
 
     # Scanner les photos
@@ -927,6 +937,7 @@ def main():
 
     # Scoring IA + nouveau dispatch v3
     scoring_report_path = None
+    photo_scores = []  # Initialisé pour --palette sans scoring
     if use_scoring:
         print("🧠 Scoring IA des photos en cours...")
         scorer = PhotoScorer()
@@ -1011,6 +1022,19 @@ def main():
         # Mode classique (sans scoring)
         pages = arrange_pages(photo_files, recits, photos_root=photos_root)
 
+    # ── Palette Colormind automatique ──
+    css_override = None
+    dynamic_palette = None
+    if args.palette:
+        if not use_scoring:
+            print("   ⚠️  --palette nécessite le scoring (--scoring). Ignoré.")
+        else:
+            print("🎨 Palette Colormind — extraction depuis les meilleures photos...")
+            dynamic_palette = extract_palette(photo_scores, n_samples=5)
+            css_override = generate_dynamic_css(dynamic_palette)
+            print(f"   ✓ Palette générée : {len(dynamic_palette)} couleurs")
+    # ═══════════════════════════════════════════════════════════════
+
     # Stats
     styles = {}
     for p in pages:
@@ -1034,7 +1058,11 @@ def main():
     preprocess_photos(pages)
 
     # Générer le HTML
-    html = generate_html(pages)
+    html = generate_html(pages, css_override=css_override)
+
+    # Appliquer la palette aux styles inline si dynamique
+    if dynamic_palette:
+        html = apply_palette_to_html(html, dynamic_palette)
 
     # Sauvegarder le HTML intermédiaire
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

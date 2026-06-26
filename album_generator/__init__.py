@@ -14,3 +14,4 @@ from .scoring import (
     find_micro_events,
     SCORE_WEIGHTS,
 )
+from .colors import extract_palette, generate_dynamic_css, apply_palette_to_html
