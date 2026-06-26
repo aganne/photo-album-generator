@@ -372,8 +372,8 @@ html, body {
 .collage-rp-item {
   position: absolute;
   background: #ffffff;
-  padding: 1.5mm;
-  box-shadow: 0 0.2mm 0.5mm rgba(0,0,0,0.10);
+  border: 0.4px solid rgba(0,0,0,0.12);
+  border-radius: 1px;
   overflow: hidden;
 }
 .collage-rp-item img {

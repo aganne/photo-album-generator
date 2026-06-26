@@ -250,8 +250,8 @@ def _layout_rectpack_collage(
     min_s, max_s = min(scores), max(scores)
 
     # Dimensions de base en pourcentage du conteneur
-    base_w = 28.0
-    base_h = 28.0
+    base_w = 26.0
+    base_h = 26.0
 
     for idx, (path, score, details) in enumerate(photo_batch):
         # Score → facteur de taille : 0.7 (min) à 1.3 (max)
