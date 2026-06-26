@@ -25,7 +25,6 @@ import json
 import random
 import hashlib
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -932,34 +931,16 @@ def main():
         # Trier par EXIF pour l'ordre chronologique
         photo_files = sort_by_exif_date(photo_files)
 
-        # Scorer chaque photo en parallèle
+        # Scorer chaque photo
         photo_scores = []
-        max_workers = min(os.cpu_count() or 4, len(photo_files), 8)
-
-        def _score_one(fp: Path):
+        for i, fp in enumerate(photo_files):
             try:
                 total, details = scorer.score(str(fp))
-                return (str(fp), total, details)
+                photo_scores.append((str(fp), total, details))
             except Exception as exc:
                 print(f"   ⚠️  Score échoué pour {fp.name}: {exc}")
-                return None
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(_score_one, fp): fp for fp in photo_files}
-            for i, future in enumerate(as_completed(futures)):
-                result = future.result()
-                if result is not None:
-                    photo_scores.append(result)
-                if (i + 1) % 20 == 0:
-                    print(f"   ... {i + 1}/{len(photo_files)} photos notées")
-
-        # Ré-ordonner par ordre EXIF (l'ordre de complétion parallèle est arbitraire)
-        photo_scores.sort(
-            key=lambda ps: next(
-                (j for j, fp in enumerate(photo_files) if str(fp) == ps[0]),
-                9999,
-            )
-        )
+            if (i + 1) % 20 == 0:
+                print(f"   ... {i + 1}/{len(photo_files)} photos notées")
 
         print(f"   ✓ {len(photo_scores)}/{len(photo_files)} photos notées")
 
