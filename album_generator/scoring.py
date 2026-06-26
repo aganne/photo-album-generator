@@ -235,6 +235,14 @@ class PhotoScorer:
         un coût ~3 ms au lieu des ~25 s de BRISQUE.
         """
         try:
+            # Downscale à 512 px max comme déclaré dans _NOISE_MAX_DIM
+            h_img, w_img = img.shape[:2]
+            max_side = max(h_img, w_img)
+            if max_side > PhotoScorer._NOISE_MAX_DIM:
+                scale = PhotoScorer._NOISE_MAX_DIM / max_side
+                new_w = int(w_img * scale)
+                new_h = int(h_img * scale)
+                img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             h, w = gray.shape
             block_size = 16

@@ -940,9 +940,17 @@ def main():
             try:
                 total, details = scorer.score(str(fp))
                 return (str(fp), total, details)
-            except Exception as exc:
-                print(f"   ⚠️  Score échoué pour {fp.name}: {exc}")
+            except (OSError, IOError) as exc:
+                # Erreur fichier attendue (corrompu, illisible)
+                print(f"   ⚠️  Fichier illisible {fp.name}: {exc}")
                 return None
+            except Exception as exc:
+                # Erreur inattendue du scorer — log mais ne pas dropper
+                import traceback
+                print(f"   ❌ Erreur scorer inattendue pour {fp.name}: {exc}")
+                traceback.print_exc()
+                # Retourner un score neutre plutôt que de perdre la photo
+                return (str(fp), 0.5, {"error": str(exc)})
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(_score_one, fp): fp for fp in photo_files}
@@ -954,12 +962,8 @@ def main():
                     print(f"   ... {i + 1}/{len(photo_files)} photos notées")
 
         # Ré-ordonner par ordre EXIF (l'ordre de complétion parallèle est arbitraire)
-        photo_scores.sort(
-            key=lambda ps: next(
-                (j for j, fp in enumerate(photo_files) if str(fp) == ps[0]),
-                9999,
-            )
-        )
+        exif_order = {str(fp): idx for idx, fp in enumerate(photo_files)}
+        photo_scores.sort(key=lambda ps: exif_order.get(ps[0], 9999))
 
         print(f"   ✓ {len(photo_scores)}/{len(photo_files)} photos notées")
 

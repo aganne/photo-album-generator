@@ -40,7 +40,7 @@ def timed_score(self, image_path):
     contrast = self._norm_contrast(self._contrast(gray_small))
     t_exp = time.time()
 
-    # --- Étape 3: BRISQUE ---
+    # --- Étape 3: Noise quality (local variance) ---
     noise_quality = self._noise_quality(img_small)
     t_noise = time.time()
 
@@ -69,7 +69,8 @@ def timed_score(self, image_path):
     total = sum(scores[k] * SCORE_WEIGHTS[k] for k in SCORE_WEIGHTS)
     edge_penalty = self._face_edge_penalty(img_full, faces)
     total *= edge_penalty
-    PhotoScorer._face_cache[str(path)] = (list(faces), img_full.shape)
+    with PhotoScorer._face_cache_lock:
+        PhotoScorer._face_cache[str(path)] = (list(faces), img_full.shape)
     total = max(0.0, min(1.0, total))
 
     t_total = time.time() - t0
@@ -80,7 +81,7 @@ def timed_score(self, image_path):
     print(f"   imread+downscale: {t_read - t_pre:.3f}s")
     print(f"   sharpness       : {t_sharp - t_read:.3f}s")
     print(f"   exposure+cntrst : {t_exp - t_sharp:.3f}s")
-    print(f"   BRISQUE         : {t_noise - t_exp:.3f}s")
+    print(f"   Noise quality   : {t_noise - t_exp:.3f}s")
     print(f"   detect_all      : {t_faces - t_noise:.3f}s")
     print(f"   smile+eyes      : {t_eyes - t_faces:.3f}s")
     print(f"   composition     : {t_comp - t_eyes:.3f}s")
