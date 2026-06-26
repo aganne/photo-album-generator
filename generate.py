@@ -25,6 +25,7 @@ import json
 import random
 import hashlib
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -931,16 +932,38 @@ def main():
         # Trier par EXIF pour l'ordre chronologique
         photo_files = sort_by_exif_date(photo_files)
 
-        # Scorer chaque photo
+        # Scorer chaque photo en parallèle
         photo_scores = []
-        for i, fp in enumerate(photo_files):
+        max_workers = min(os.cpu_count() or 4, len(photo_files), 8)
+
+        def _score_one(fp: Path):
             try:
                 total, details = scorer.score(str(fp))
-                photo_scores.append((str(fp), total, details))
+                return (str(fp), total, details)
+            except (OSError, IOError) as exc:
+                # Erreur fichier attendue (corrompu, illisible)
+                print(f"   ⚠️  Fichier illisible {fp.name}: {exc}")
+                return None
             except Exception as exc:
-                print(f"   ⚠️  Score échoué pour {fp.name}: {exc}")
-            if (i + 1) % 20 == 0:
-                print(f"   ... {i + 1}/{len(photo_files)} photos notées")
+                # Erreur inattendue du scorer — log mais ne pas dropper
+                import traceback
+                print(f"   ❌ Erreur scorer inattendue pour {fp.name}: {exc}")
+                traceback.print_exc()
+                # Retourner un score neutre plutôt que de perdre la photo
+                return (str(fp), 0.5, {"error": str(exc)})
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_score_one, fp): fp for fp in photo_files}
+            for i, future in enumerate(as_completed(futures)):
+                result = future.result()
+                if result is not None:
+                    photo_scores.append(result)
+                if (i + 1) % 20 == 0:
+                    print(f"   ... {i + 1}/{len(photo_files)} photos notées")
+
+        # Ré-ordonner par ordre EXIF (l'ordre de complétion parallèle est arbitraire)
+        exif_order = {str(fp): idx for idx, fp in enumerate(photo_files)}
+        photo_scores.sort(key=lambda ps: exif_order.get(ps[0], 9999))
 
         print(f"   ✓ {len(photo_scores)}/{len(photo_files)} photos notées")
 
