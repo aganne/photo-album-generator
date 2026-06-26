@@ -250,8 +250,8 @@ def _layout_rectpack_collage(
     min_s, max_s = min(scores), max(scores)
 
     # Dimensions de base en pourcentage du conteneur
-    base_w = 28.0
-    base_h = 28.0
+    base_w = 26.0
+    base_h = 26.0
 
     for idx, (path, score, details) in enumerate(photo_batch):
         # Score → facteur de taille : 0.7 (min) à 1.3 (max)
@@ -291,13 +291,15 @@ def _layout_rectpack_collage(
             })
         else:
             # Fallback : la photo n'a pas pu être packée
+            fw = int(base_w)
+            fh = int(base_h)
             photos.append({
                 "path": str(Path(path).resolve()),
                 "label": Path(path).name,
-                "left": 5 + (idx % 3) * 31,
-                "top": 5 + (idx // 3) * 31,
-                "width": 28,
-                "height": 28,
+                "left": 5 + (idx % 3) * (fw + 5),
+                "top": 5 + (idx // 3) * (fh + 5),
+                "width": fw,
+                "height": fh,
             })
 
     return photos

@@ -574,7 +574,7 @@ class PhotoScorer:
     def smart_crop(
         image_path: str | Path,
         output_path: str | Path,
-        padding: float = 0.3,
+        padding: float = 1.0,
         aspect_ratio: Optional[float] = None,
     ) -> bool:
         img = cv2.imread(str(image_path))
