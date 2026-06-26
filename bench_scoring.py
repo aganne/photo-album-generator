@@ -41,6 +41,7 @@ def timed_score(self, image_path):
     t_exp = time.time()
 
     # --- Étape 3: Noise quality (local variance) ---
+    # CodeRabbit PR#6 review — label renommé (plus BRISQUE) ✅
     noise_quality = self._noise_quality(img_small)
     t_noise = time.time()
 

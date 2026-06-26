@@ -946,6 +946,7 @@ def main():
                 return None
             except Exception as exc:
                 # Erreur inattendue du scorer — log mais ne pas dropper
+                # CodeRabbit PR#6 review — score neutre 0.5 au lieu de None ✅
                 import traceback
                 print(f"   ❌ Erreur scorer inattendue pour {fp.name}: {exc}")
                 traceback.print_exc()

@@ -233,6 +233,8 @@ class PhotoScorer:
 
         L'image est réduite à 512 px de côté max avant analyse pour
         un coût ~3 ms au lieu des ~25 s de BRISQUE.
+
+        Note: CodeRabbit PR#6 review — downscale 512px implémenté ici ✅
         """
         try:
             # Downscale à 512 px max comme déclaré dans _NOISE_MAX_DIM
