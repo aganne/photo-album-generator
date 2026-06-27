@@ -860,7 +860,7 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Templates structurés T1-T9 — CSS Grid dynamique
+   Templates structurés P1-P7 + T9 — CSS Grid dynamique
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Page template structuré ─────────────────────────────────── */
@@ -993,53 +993,47 @@ html, body {
   margin: 0;
 }
 
-/* ── Template-specific grid layouts ─────────────────────────── */
+/* ── Template-specific grid layouts V2 (P1-P7 portrait-friendly) ── */
 
-/* T1: 2fr hero | 1fr colonne droite, 4 rows */
-.template-grid-T1 {
-  grid-template-columns: 2fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr 1fr;
-}
-
-/* T2: 2fr hero | 1fr 1fr colonne droite, 4 rows */
-.template-grid-T2 {
-  grid-template-columns: 2fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr 1fr;
-}
-
-/* T3: 2 colonnes, 4 rows (sablier) */
-.template-grid-T3 {
+/* P1: 2 colonnes, 6 rows — colonne unique avec sub-division basse */
+.template-grid-P1 {
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
 }
 
-/* T4: 2 colonnes, 3 rows (diagonale) */
-.template-grid-T4 {
+/* P2: 2 colonnes, 6 rows — duo colonnes */
+.template-grid-P2 {
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
 }
 
-/* T5: 4 colonnes (small | hero 2cols | small), 3 rows */
-.template-grid-T5 {
-  grid-template-columns: 1fr 2fr 2fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr;
+/* P3: 2 colonnes, 6 rows — triptyque 60/40 */
+.template-grid-P3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
 }
 
-/* T6: 3 colonnes, 5 rows */
-.template-grid-T6 {
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr 1fr 1fr;
+/* P4: 2 colonnes, 6 rows — mosaïque portrait */
+.template-grid-P4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
 }
 
-/* T7: 3 colonnes, 5 rows */
-.template-grid-T7 {
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr 1fr 1fr;
+/* P5: 2 colonnes, 6 rows — asymétrique vertical */
+.template-grid-P5 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
 }
 
-/* T8: 4 colonnes, 6 rows (hero 4×5 + texte 4×1) */
-.template-grid-T8 {
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+/* P6: 1 colonne, 6 rows — diptyque */
+.template-grid-P6 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
+}
+
+/* P7: 2 colonnes, 6 rows — quadriptyque */
+.template-grid-P7 {
+  grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
 }
 

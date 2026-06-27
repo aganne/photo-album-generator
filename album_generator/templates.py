@@ -1,7 +1,7 @@
 """
-Système de templates structurés T1-T9 — remplace le rectpack aléatoire.
+Système de templates structurés V2 (P1-P7 portrait-friendly + T9 conservé).
 
-9 templates prédéfinis avec zones photo (hero/medium/small) et zones texte (10%).
+8 templates prédéfinis avec zones photo (hero/medium/small) et zones texte (10-40%).
 Workflow : scoring → TemplateSelector.select() → PhotoDispatcher.dispatch() →
            TextGenerator.generate() → rendu HTML.
 
@@ -57,6 +57,7 @@ class Zone:
         self.min_score: float = data.get("min_score", 0.0)
         self.content: str = data.get("content", "legend")
         self.spiral_pos: Optional[int] = data.get("spiral_pos")
+        self.aspect_target: Optional[float] = data.get("aspect_target")
 
     def area(self) -> int:
         """Surface en unités de grille."""
@@ -87,7 +88,7 @@ class Template:
     """Un template de page d'album avec ses zones.
 
     Attributes:
-        id: identifiant unique (T1, T2, ..., T9)
+        id: identifiant unique (P1, P2, ..., P7, T9)
         name: nom lisible (ex: "heroique-vertical")
         description: description textuelle
         zones: liste de Zone
@@ -122,9 +123,9 @@ class Template:
         return [z for z in self._zones if z.type == "text"]
 
     def hero_min_score(self) -> float:
-        """Score minimum requis pour la plus grande zone photo (hero)."""
+        """Score minimum requis pour la zone photo la plus exigeante."""
         photos = self.photo_zones_list()
-        return photos[0].min_score if photos else 0.0
+        return max(z.min_score for z in photos) if photos else 0.0
 
     def validate(self) -> bool:
         """Vérifie l'intégrité du template (pas de chevauchement)."""
@@ -155,178 +156,159 @@ class Template:
                 f"photos={self.photo_zones}, text={self.text_zones})")
 
 
-# ── 9 Templates JSON (depuis le rapport Athéna, sections 3.1–3.9) ──────
+# ── 8 Templates JSON V2 (P1-P7 portrait-friendly + T9 conservé) ──────
+# Source : rapport Athéna V2 (sections 4.1–4.8)
 
 _TEMPLATES_JSON: List[Dict[str, Any]] = [
-    # ═══ T1 — Héroïque vertical ═══
+    # ═══ P1 — Colonne unique (3 photos + 1 texte) ═══
     {
-        "id": "T1",
-        "name": "heroique-vertical",
-        "description": "Photo hero verticale (portrait) + zone texte à droite + petite photo",
+        "id": "P1",
+        "name": "colonne-unique",
+        "description": "Hero 100% largeur sur 70% hauteur + texte EXIF + 2 small en bas",
+        "total_zones": 4,
+        "photo_zones": 3,
+        "text_zones": 1,
+        "best_for": "Photo hero portrait forte + légende EXIF + 2 photos contextuelles en bas",
+        "zones": [
+            {"id": "hero", "type": "photo", "size": "hero",
+             "col": 0, "row": 0, "width": 2, "height": 4, "min_score": 0.75, "aspect_target": 1.5},
+            {"id": "txt01", "type": "text", "size": "medium",
+             "col": 0, "row": 4, "width": 2, "height": 1, "content": "legend"},
+            {"id": "small_l", "type": "photo", "size": "small",
+             "col": 0, "row": 5, "width": 1, "height": 1, "min_score": 0.30, "aspect_target": 1.0},
+            {"id": "small_r", "type": "photo", "size": "small",
+             "col": 1, "row": 5, "width": 1, "height": 1, "min_score": 0.30, "aspect_target": 1.0},
+        ],
+    },
+    # ═══ P2 — Duo colonnes (4 photos + 1 texte) ═══
+    {
+        "id": "P2",
+        "name": "duo-colonnes",
+        "description": "Deux colonnes verticales — hero à gauche, 2 medium empilées à droite, texte large en bas",
+        "total_zones": 6,
+        "photo_zones": 5,
+        "text_zones": 1,
+        "best_for": "Deux photos fortes en parallèle (before/after, duo) + légende développée",
+        "zones": [
+            {"id": "hero", "type": "photo", "size": "hero",
+             "col": 0, "row": 0, "width": 1, "height": 3, "min_score": 0.75, "aspect_target": 1.41},
+            {"id": "medium_t", "type": "photo", "size": "medium",
+             "col": 1, "row": 0, "width": 1, "height": 1, "min_score": 0.50, "aspect_target": 1.41},
+            {"id": "medium_b", "type": "photo", "size": "medium",
+             "col": 1, "row": 1, "width": 1, "height": 2, "min_score": 0.50, "aspect_target": 1.41},
+            {"id": "txt01", "type": "text", "size": "medium",
+             "col": 0, "row": 3, "width": 2, "height": 2, "content": "legend"},
+            {"id": "small_l", "type": "photo", "size": "small",
+             "col": 0, "row": 5, "width": 1, "height": 1, "min_score": 0.30, "aspect_target": 1.0},
+            {"id": "small_r", "type": "photo", "size": "small",
+             "col": 1, "row": 5, "width": 1, "height": 1, "min_score": 0.30, "aspect_target": 1.0},
+        ],
+    },
+    # ═══ P3 — Triptyque 60/40 (2 photos + 1 texte) ═══
+    {
+        "id": "P3",
+        "name": "triptyque-60-40",
+        "description": "60% haut = 2 photos hero côte à côte + 40% bas = texte EXIF long",
         "total_zones": 3,
         "photo_zones": 2,
         "text_zones": 1,
+        "best_for": "Événement avec 2 photos fortes + longue description narrative (Anniversaire, Mariage)",
         "zones": [
-            {"id": "hero", "type": "photo", "size": "hero",
-             "col": 0, "row": 0, "width": 2, "height": 4, "min_score": 0.75},
-            {"id": "txt01", "type": "text", "size": "medium",
-             "col": 2, "row": 0, "width": 1, "height": 2, "content": "legend"},
-            {"id": "small", "type": "photo", "size": "small",
-             "col": 2, "row": 2, "width": 1, "height": 2, "min_score": 0.30},
+            {"id": "hero_l", "type": "photo", "size": "hero",
+             "col": 0, "row": 0, "width": 1, "height": 4, "min_score": 0.60, "aspect_target": 1.41},
+            {"id": "hero_r", "type": "photo", "size": "hero",
+             "col": 1, "row": 0, "width": 1, "height": 4, "min_score": 0.60, "aspect_target": 1.41},
+            {"id": "txt01", "type": "text", "size": "hero",
+             "col": 0, "row": 4, "width": 2, "height": 2, "content": "full"},
         ],
-        "best_for": "photo hero avec légende longue + photo secondaire",
     },
-    # ═══ T2 — Duo asymétrique ═══
+    # ═══ P4 — Mosaïque portrait (5 photos + 1 texte) ═══
     {
-        "id": "T2",
-        "name": "duo-asymetrique",
-        "description": "Hero gauche pleine hauteur + colonne droite avec texte et photos",
-        "total_zones": 4,
-        "photo_zones": 3,
+        "id": "P4",
+        "name": "mosaique-portrait",
+        "description": "5 photos en mosaïque verticale — medium large en haut, 2 medium côte à côte, small en bas + texte",
+        "total_zones": 6,
+        "photo_zones": 5,
         "text_zones": 1,
+        "best_for": "5 photos de qualité moyenne à bonne — narrative riche, densité équilibrée",
         "zones": [
-            {"id": "hero", "type": "photo", "size": "hero",
-             "col": 0, "row": 0, "width": 2, "height": 4, "min_score": 0.75},
-            {"id": "txt01", "type": "text", "size": "small",
-             "col": 2, "row": 0, "width": 2, "height": 1, "content": "legend"},
-            {"id": "small", "type": "photo", "size": "small",
-             "col": 2, "row": 1, "width": 1, "height": 1, "min_score": 0.30},
-            {"id": "medium", "type": "photo", "size": "medium",
-             "col": 2, "row": 2, "width": 2, "height": 2, "min_score": 0.50},
-        ],
-        "best_for": "photo principale forte + 2 photos secondaires + légende",
-    },
-    # ═══ T3 — Grille sablier 4z ═══
-    {
-        "id": "T3",
-        "name": "grille-sablier-4z",
-        "description": "2 small en haut, hero large au centre, medium+small en bas",
-        "total_zones": 5,
-        "photo_zones": 4,
-        "text_zones": 1,
-        "zones": [
-            {"id": "small_top", "type": "photo", "size": "small",
-             "col": 0, "row": 0, "width": 1, "height": 1, "min_score": 0.30},
-            {"id": "txt01", "type": "text", "size": "small",
-             "col": 1, "row": 0, "width": 1, "height": 1, "content": "legend"},
-            {"id": "hero", "type": "photo", "size": "hero",
-             "col": 0, "row": 1, "width": 2, "height": 2, "min_score": 0.65},
-            {"id": "medium", "type": "photo", "size": "medium",
-             "col": 0, "row": 3, "width": 1, "height": 2, "min_score": 0.45},
-            {"id": "small_bot", "type": "photo", "size": "small",
-             "col": 1, "row": 3, "width": 1, "height": 2, "min_score": 0.25},
-        ],
-        "best_for": "narrative en 3 actes : contexte → hero → conclusion",
-    },
-    # ═══ T4 — Diagonale 4z ═══
-    {
-        "id": "T4",
-        "name": "diagonale-4z",
-        "description": "Grille 2×2 asymétrique — hero haut-gauche, texte bas-gauche",
-        "total_zones": 4,
-        "photo_zones": 3,
-        "text_zones": 1,
-        "zones": [
-            {"id": "hero", "type": "photo", "size": "hero",
-             "col": 0, "row": 0, "width": 1, "height": 2, "min_score": 0.70},
             {"id": "medium_t", "type": "photo", "size": "medium",
-             "col": 1, "row": 0, "width": 1, "height": 1, "min_score": 0.50},
+             "col": 0, "row": 0, "width": 2, "height": 2, "min_score": 0.50, "aspect_target": 1.41},
+            {"id": "medium_l", "type": "photo", "size": "medium",
+             "col": 0, "row": 2, "width": 1, "height": 2, "min_score": 0.45, "aspect_target": 1.41},
+            {"id": "medium_r", "type": "photo", "size": "medium",
+             "col": 1, "row": 2, "width": 1, "height": 2, "min_score": 0.45, "aspect_target": 1.41},
+            {"id": "txt01", "type": "text", "size": "small",
+             "col": 0, "row": 4, "width": 2, "height": 1, "content": "legend"},
+            {"id": "small_l", "type": "photo", "size": "small",
+             "col": 0, "row": 5, "width": 1, "height": 1, "min_score": 0.30, "aspect_target": 1.0},
+            {"id": "small_r", "type": "photo", "size": "small",
+             "col": 1, "row": 5, "width": 1, "height": 1, "min_score": 0.30, "aspect_target": 1.0},
+        ],
+    },
+    # ═══ P5 — Asymétrique vertical (4 photos + 1 texte) ═══
+    {
+        "id": "P5",
+        "name": "asymetrique-vertical",
+        "description": "Hero gauche verticale + bloc droit (medium + texte) + medium large en bas + 2 small",
+        "total_zones": 6,
+        "photo_zones": 5,
+        "text_zones": 1,
+        "best_for": "Photo hero forte + 3 secondaires + légende — l'équivalent portrait du T2 original",
+        "zones": [
+            {"id": "hero", "type": "photo", "size": "hero",
+             "col": 0, "row": 0, "width": 1, "height": 3, "min_score": 0.75, "aspect_target": 1.41},
+            {"id": "medium_r", "type": "photo", "size": "medium",
+             "col": 1, "row": 0, "width": 1, "height": 2, "min_score": 0.50, "aspect_target": 1.41},
+            {"id": "txt01", "type": "text", "size": "small",
+             "col": 1, "row": 2, "width": 1, "height": 1, "content": "legend"},
+            {"id": "medium_b", "type": "photo", "size": "medium",
+             "col": 0, "row": 3, "width": 2, "height": 2, "min_score": 0.45, "aspect_target": 1.41},
+            {"id": "small_l", "type": "photo", "size": "small",
+             "col": 0, "row": 5, "width": 1, "height": 1, "min_score": 0.25, "aspect_target": 1.0},
+            {"id": "small_r", "type": "photo", "size": "small",
+             "col": 1, "row": 5, "width": 1, "height": 1, "min_score": 0.25, "aspect_target": 1.0},
+        ],
+    },
+    # ═══ P6 — Diptyque (2 photos + 1 texte) ═══
+    {
+        "id": "P6",
+        "name": "diptyque",
+        "description": "Hero grand format (67% hauteur) + texte EXIF large + small contextuelle en bas",
+        "total_zones": 3,
+        "photo_zones": 2,
+        "text_zones": 1,
+        "best_for": "Photo très forte (score ≥ 0.80) = exceptionnelle, avec légende longue + photo d'ambiance",
+        "zones": [
+            {"id": "hero", "type": "photo", "size": "hero",
+             "col": 0, "row": 0, "width": 1, "height": 4, "min_score": 0.80, "aspect_target": 1.5},
             {"id": "txt01", "type": "text", "size": "medium",
-             "col": 0, "row": 2, "width": 1, "height": 1, "content": "legend"},
+             "col": 0, "row": 4, "width": 1, "height": 1, "content": "full"},
             {"id": "small", "type": "photo", "size": "small",
-             "col": 1, "row": 2, "width": 1, "height": 1, "min_score": 0.30},
+             "col": 0, "row": 5, "width": 1, "height": 1, "min_score": 0.35, "aspect_target": 1.0},
         ],
-        "best_for": "équilibre entre hero forte et zone texte visible",
     },
-    # ═══ T5 — Colonne centrale ═══
+    # ═══ P7 — Quadriptyque (4 photos, sans texte) ═══
     {
-        "id": "T5",
-        "name": "colonne-centrale",
-        "description": "Hero vertical central entouré de 6 zones latérales",
-        "total_zones": 7,
-        "photo_zones": 5,
-        "text_zones": 2,
-        "zones": [
-            {"id": "small_tl", "type": "photo", "size": "small",
-             "col": 0, "row": 0, "width": 1, "height": 1, "min_score": 0.25},
-            {"id": "txt01", "type": "text", "size": "small",
-             "col": 0, "row": 1, "width": 1, "height": 1, "content": "month"},
-            {"id": "small_bl", "type": "photo", "size": "small",
-             "col": 0, "row": 2, "width": 1, "height": 1, "min_score": 0.25},
-            {"id": "hero", "type": "photo", "size": "hero",
-             "col": 1, "row": 0, "width": 2, "height": 3, "min_score": 0.75},
-            {"id": "small_tr", "type": "photo", "size": "small",
-             "col": 3, "row": 0, "width": 1, "height": 1, "min_score": 0.25},
-            {"id": "small_mr", "type": "photo", "size": "small",
-             "col": 3, "row": 1, "width": 1, "height": 1, "min_score": 0.25},
-            {"id": "txt02", "type": "text", "size": "small",
-             "col": 3, "row": 2, "width": 1, "height": 1, "content": "event"},
-        ],
-        "best_for": "photo hero très forte entourée de beaucoup de contexte",
-    },
-    # ═══ T6 — Mosaïque 5z ═══
-    {
-        "id": "T6",
-        "name": "mosaique-5z",
-        "description": "Hero vertical à gauche + bloc droit 3 zones + medium large en bas",
-        "total_zones": 6,
+        "id": "P7",
+        "name": "quadriptyque",
+        "description": "4 zones medium de taille égale en grille 2×2 — sans texte, 100% photo",
+        "total_zones": 4,
         "photo_zones": 4,
-        "text_zones": 2,
+        "text_zones": 0,
+        "best_for": "4 photos de force égale — grille dense, pas de hiérarchie, ambiance galerie",
         "zones": [
-            {"id": "hero", "type": "photo", "size": "hero",
-             "col": 0, "row": 0, "width": 1, "height": 3, "min_score": 0.70},
-            {"id": "medium_r0", "type": "photo", "size": "medium",
-             "col": 1, "row": 0, "width": 1, "height": 1, "min_score": 0.50},
-            {"id": "small_r0", "type": "photo", "size": "small",
-             "col": 2, "row": 0, "width": 1, "height": 1, "min_score": 0.25},
-            {"id": "txt01", "type": "text", "size": "medium",
-             "col": 1, "row": 1, "width": 2, "height": 2, "content": "description"},
-            {"id": "medium_b", "type": "photo", "size": "medium",
-             "col": 0, "row": 3, "width": 3, "height": 2, "min_score": 0.40},
+            {"id": "medium_tl", "type": "photo", "size": "medium",
+             "col": 0, "row": 0, "width": 1, "height": 3, "min_score": 0.40, "aspect_target": 1.41},
+            {"id": "medium_tr", "type": "photo", "size": "medium",
+             "col": 1, "row": 0, "width": 1, "height": 3, "min_score": 0.40, "aspect_target": 1.41},
+            {"id": "medium_bl", "type": "photo", "size": "medium",
+             "col": 0, "row": 3, "width": 1, "height": 3, "min_score": 0.40, "aspect_target": 1.41},
+            {"id": "medium_br", "type": "photo", "size": "medium",
+             "col": 1, "row": 3, "width": 1, "height": 3, "min_score": 0.40, "aspect_target": 1.41},
         ],
-        "best_for": "alternance dense/aéré avec zone de description longue",
     },
-    # ═══ T7 — Collège 4z ═══
-    {
-        "id": "T7",
-        "name": "college-4z",
-        "description": "Hero vertical gauche + grille 2×2 à droite + medium large bas",
-        "total_zones": 6,
-        "photo_zones": 5,
-        "text_zones": 1,
-        "zones": [
-            {"id": "hero", "type": "photo", "size": "hero",
-             "col": 0, "row": 0, "width": 1, "height": 3, "min_score": 0.65},
-            {"id": "small_t", "type": "photo", "size": "small",
-             "col": 1, "row": 0, "width": 1, "height": 1, "min_score": 0.30},
-            {"id": "small_tr", "type": "photo", "size": "small",
-             "col": 2, "row": 0, "width": 1, "height": 1, "min_score": 0.30},
-            {"id": "small_bl", "type": "photo", "size": "small",
-             "col": 1, "row": 1, "width": 1, "height": 1, "min_score": 0.25},
-            {"id": "txt01", "type": "text", "size": "small",
-             "col": 2, "row": 1, "width": 1, "height": 1, "content": "legend"},
-            {"id": "medium_b", "type": "photo", "size": "medium",
-             "col": 0, "row": 3, "width": 3, "height": 2, "min_score": 0.40},
-        ],
-        "best_for": "beaucoup de photos secondaires + hero + légende",
-    },
-    # ═══ T8 — Pleine page ═══
-    {
-        "id": "T8",
-        "name": "pleine-page",
-        "description": "Photo plein format avec large bande de texte en bas",
-        "total_zones": 2,
-        "photo_zones": 1,
-        "text_zones": 1,
-        "zones": [
-            {"id": "hero", "type": "photo", "size": "hero",
-             "col": 0, "row": 0, "width": 4, "height": 5, "min_score": 0.85},
-            {"id": "txt01", "type": "text", "size": "medium",
-             "col": 0, "row": 5, "width": 4, "height": 1, "content": "full"},
-        ],
-        "best_for": "photo exceptionnelle (score ≥ 0.85), ouverture ou transition majeure",
-    },
-    # ═══ T9 — Pellicule spirale ═══
+    # ═══ T9 — Pellicule spirale (conservé de V1) ═══
     {
         "id": "T9",
         "name": "pellicule-spirale",
@@ -391,12 +373,12 @@ _TEMPLATES_JSON: List[Dict[str, Any]] = [
 
 
 def get_all_templates() -> List[Template]:
-    """Charge et retourne les 9 templates (T1-T9)."""
+    """Charge et retourne les 8 templates (P1-P7 + T9)."""
     return [Template(t) for t in _TEMPLATES_JSON]
 
 
 def get_template_by_id(template_id: str) -> Optional[Template]:
-    """Retourne un template par son ID (ex: 'T1', 'T5')."""
+    """Retourne un template par son ID (ex: 'P1', 'P5')."""
     tid = template_id.upper()
     for t in _TEMPLATES_JSON:
         if t["id"] == tid:
@@ -419,7 +401,7 @@ class TemplateSelector:
 
     # Templates utilisables pour la sélection automatique (T9 exclu car
     # réservé aux vidéos — sera sélectionné explicitement par le pipeline)
-    _AUTO_TEMPLATES = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"]
+    _AUTO_TEMPLATES = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
 
     def __init__(
         self,
@@ -466,8 +448,8 @@ class TemplateSelector:
 
             # Doit avoir assez de photos pour remplir les zones photo
             if t.photo_zones > photo_count:
-                # T8 toléré même avec 1 photo si le score est exceptionnel
-                if t.id != "T8":
+                # P6 toléré même avec 1 photo si le score est exceptionnel
+                if t.id != "P6":
                     continue
 
             # Top score doit atteindre le min_score de la hero
@@ -484,10 +466,7 @@ class TemplateSelector:
             candidates.append((match_score, t))
 
         if not candidates:
-            # Fallback : aucun template ne matche → retourner T7 (le plus tolérant)
-            for t in self._templates:
-                if t.id == "T7":
-                    return t
+            # Fallback : aucun template ne matche → None (les appelants tombent sur grille)
             return None
 
         # Prendre le meilleur match (plus petit écart)
@@ -827,7 +806,7 @@ def template_assignments_to_pages(
 
     Returns:
         Dict compatible avec le système de pages existant :
-        {"style": "template_T3", "data": {"template_id": "T3", "zones": [...]}}
+        {"style": "template_P3", "data": {"template_id": "P3", "zones": [...]}}
     """
     zones_output = []
     for zone_id, assignment in assignments.items():
@@ -852,7 +831,7 @@ def new_arrange_pages_with_templates(
 ) -> List[Dict]:
     """Version modifiée de arrange_pages_from_scores_v3 utilisant les templates.
 
-    Remplace rectpack par les templates structurés T1-T9.
+    Remplace rectpack par les templates structurés P1-P7 + T9.
     Garde les styles heroique et quatuor existants pour la compatibilité.
 
     Args:
@@ -967,7 +946,7 @@ def new_arrange_pages_with_templates(
             # Si pas assez de photos restantes pour ce template,
             # essayer un template plus petit
             if len(remaining) < consume:
-                # Essayer les templates plus petits (T8→T1, par nb de zones)
+                # Essayer les templates plus petits (P6→P7, par nb de zones)
                 smaller = sorted(
                     [t for t in get_all_templates()
                      if t.id != "T9" and t.photo_zones <= len(remaining)],

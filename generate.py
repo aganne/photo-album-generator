@@ -322,13 +322,13 @@ def arrange_pages_from_scores_v3(
     collage_max: int = 9,
     forced_template_id: Optional[str] = None,
 ) -> List[Dict]:
-    """Dispatch fenêtre glissante avec templates structurés T1-T9.
+    """Dispatch fenêtre glissante avec templates structurés V2 (P1-P7 + T9).
 
     Les photos sont déjà triées chronologiquement (EXIF) par l'appelant.
     Dans chaque fenêtre :
       - Top 1 score  → Héroïque (pleine page)
       - 2-4 scores   → Quatuor (3 photos + mois/année)
-      - Reste         → Templates structurés T1-T9 (remplace rectpack)
+      - Reste         → Templates structurés P1-P7 + T9 (remplace rectpack)
 
     Args:
         photo_scores: liste de (path, score, details) triée par EXIF
@@ -444,8 +444,8 @@ def arrange_pages_from_scores_v3(
             # Adapter si pas assez de photos
             if len(remaining) < consume:
                 smaller = []
-                if forced_template_id:
-                    # Forcé par l'utilisateur → dispatch() gère les short batches
+                if forced_template_id or template.id == "P6":
+                    # Forcé par l'utilisateur ou P6 tolérant → dispatch() gère les short batches
                     consume = min(consume, len(remaining))
                 else:
                     all_templates = get_all_templates()
@@ -977,9 +977,9 @@ def main():
     parser.add_argument("--enhance", choices=["default", "strong"], nargs="?",
                         const="default", default=None,
                         help="Retouche photo automatique avant scoring (default|strong)")
-    parser.add_argument("--template", "-t", choices=["T1","T2","T3","T4","T5","T6","T7","T8","T9"],
+    parser.add_argument("--template", "-t", choices=["P1","P2","P3","P4","P5","P6","P7","T9"],
                         default=None,
-                        help="Forcer un template spécifique (T1-T9) au lieu de la sélection auto")
+                        help="Forcer un template spécifique (P1-P7, T9) au lieu de la sélection auto")
     args = parser.parse_args()
 
     # Scanner les photos
@@ -1146,7 +1146,7 @@ def main():
             if style == "heroique":
                 photos_in_page = [page["data"]["photo"]]
             elif style.startswith("template_"):
-                # Nouvelles pages template T1-T9
+                # Nouvelles pages template P1-P7 + T9
                 zones = page["data"].get("zones", [])
                 for zone in zones:
                     if zone.get("type") == "photo" and zone.get("photo_path"):
