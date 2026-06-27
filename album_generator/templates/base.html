@@ -33,6 +33,8 @@
     {% include "credits.html" %}
   {% elif page.style == "blank" %}
     {% include "blank.html" %}
+  {% elif page.style == "template_structured" %}
+    {% include "template_structured.html" %}
   {% endif %}
 {% endfor %}
 

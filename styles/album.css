@@ -852,3 +852,192 @@ html, body {
   color: #5a3a1a;
   line-height: 2;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Templates structurés T1-T9 — CSS Grid dynamique
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Page template structuré ─────────────────────────────────── */
+.page-template {
+  padding: 6mm 8mm 8mm 8mm;
+}
+
+.template-header {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  margin-bottom: 3mm;
+  padding-bottom: 2mm;
+  border-bottom: 1px solid #e8cfa0;
+}
+
+.template-badge {
+  font-family: "DM Serif Display", serif;
+  font-size: 8pt;
+  color: #e8cfa0;
+  border: 1px solid #e8cfa0;
+  border-radius: 2mm;
+  padding: 0.8mm 2.5mm;
+  letter-spacing: 0.5mm;
+}
+
+.template-name {
+  font-family: "Satoshi", sans-serif;
+  font-size: 7pt;
+  color: #8a6a3a;
+  text-transform: uppercase;
+  letter-spacing: 1mm;
+}
+
+.template-grid {
+  display: grid;
+  gap: 2mm;
+  width: 100%;
+  height: calc(100% - 10mm);
+}
+
+/* ── Zone generics ──────────────────────────────────────────── */
+.zone {
+  overflow: hidden;
+  position: relative;
+}
+
+/* Photo zones */
+.zone-photo-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.zone-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.zone-photo-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #e8cfa0;
+  opacity: 0.3;
+  gap: 1mm;
+}
+
+.zone-empty-icon {
+  font-size: 14pt;
+}
+
+.zone-empty-label {
+  font-family: "Satoshi", sans-serif;
+  font-size: 6pt;
+  color: #8a6a3a;
+  text-transform: uppercase;
+  letter-spacing: 1mm;
+}
+
+.zone-score-badge {
+  position: absolute;
+  top: 2mm;
+  right: 2mm;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-family: "Satoshi", sans-serif;
+  font-size: 6pt;
+  padding: 0.3mm 1.5mm;
+  border-radius: 1mm;
+}
+
+/* Text zones */
+.zone-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fefcf5;
+  border: 1px solid #e8cfa0;
+  padding: 1.5mm;
+}
+
+.zone-text-content {
+  width: 100%;
+  text-align: center;
+}
+
+.zone-text-rendered {
+  font-family: "DM Serif Display", serif;
+  font-size: 10pt;
+  color: #3a2a1a;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.zone-text-placeholder {
+  font-family: "Satoshi", sans-serif;
+  font-size: 7pt;
+  color: #e8cfa0;
+  margin: 0;
+}
+
+/* ── Template-specific grid layouts ─────────────────────────── */
+
+/* T1: 2fr hero | 1fr colonne droite, 4 rows */
+.template-grid-T1 {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr;
+}
+
+/* T2: 2fr hero | 1fr 1fr colonne droite, 4 rows */
+.template-grid-T2 {
+  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr;
+}
+
+/* T3: 2 colonnes, 4 rows (sablier) */
+.template-grid-T3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr;
+}
+
+/* T4: 2 colonnes, 3 rows (diagonale) */
+.template-grid-T4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+}
+
+/* T5: 4 colonnes (small | hero 2cols | small), 3 rows */
+.template-grid-T5 {
+  grid-template-columns: 1fr 2fr 2fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+}
+
+/* T6: 3 colonnes, 5 rows */
+.template-grid-T6 {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr;
+}
+
+/* T7: 3 colonnes, 5 rows */
+.template-grid-T7 {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr;
+}
+
+/* T8: 4 colonnes, 6 rows (hero 4×5 + texte 4×1) */
+.template-grid-T8 {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
+}
+
+/* T9: 4 colonnes, 6 rows (5 frame rows + 1 text), fond noir */
+.template-grid-T9 {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr auto;
+  background: #0a0a0a;
+  padding: 16mm 12mm 12mm 12mm;
+  gap: 1mm;
+}

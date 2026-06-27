@@ -49,6 +49,10 @@ from album_generator.scoring import (
 from album_generator.colors import extract_palette, generate_dynamic_css, apply_palette_to_html
 from album_generator.enhance import batch_enhance
 from album_generator.print_risk import compute_print_penalty_file
+from album_generator.templates import (
+    TemplateSelector, PhotoDispatcher, TextGenerator,
+    get_all_templates, template_assignments_to_pages,
+)
 
 
 # ── Chemins ─────────────────────────────────────────────────────────
@@ -316,20 +320,22 @@ def arrange_pages_from_scores_v3(
     window_size: int = 40,
     collage_min: int = 6,
     collage_max: int = 9,
+    forced_template_id: Optional[str] = None,
 ) -> List[Dict]:
-    """Dispatch fenêtre glissante — remplace l'ancien 7/13/80.
+    """Dispatch fenêtre glissante avec templates structurés T1-T9.
 
     Les photos sont déjà triées chronologiquement (EXIF) par l'appelant.
-    On les découpe en fenêtres de `window_size`. Dans chaque fenêtre :
+    Dans chaque fenêtre :
       - Top 1 score  → Héroïque (pleine page)
       - 2-4 scores   → Quatuor (3 photos + mois/année)
-      - Reste         → Collage rectpack (6-9 photos)
+      - Reste         → Templates structurés T1-T9 (remplace rectpack)
 
     Args:
         photo_scores: liste de (path, score, details) triée par EXIF
         window_size: taille de la fenêtre glissante
-        collage_min: nombre minimum de photos par collage
-        collage_max: nombre maximum de photos par collage
+        collage_min: ignoré (conservé pour compatibilité API)
+        collage_max: ignoré (conservé pour compatibilité API)
+        forced_template_id: si spécifié, force ce template pour les pages
 
     Returns:
         Liste de dicts représentant chaque page.
@@ -400,16 +406,28 @@ def arrange_pages_from_scores_v3(
                 "data": {"photo": _make_photo_dict(path2)},
             })
 
-        # ── Collages rectpack : reste (positions 5+) ──
+        # ── Templates structurés : reste (positions 5+) ──
         rest_start = 4
         rest = window_sorted[rest_start:]
 
+        selector = TemplateSelector()
+        text_gen = TextGenerator()
+        window_templates_used: List[str] = []
+
         idx = 0
         while idx < len(rest):
-            batch_size = min(collage_max, len(rest) - idx)
-            if batch_size < collage_min:
-                # Trop peu pour un collage → grille
-                photos = [_make_photo_dict(rest[i][0]) for i in range(idx, len(rest))]
+            remaining = rest[idx:]
+
+            if forced_template_id:
+                template = selector.select_by_id(forced_template_id)
+            else:
+                template = selector.select(remaining, used_templates=window_templates_used)
+
+            if template is None:
+                # Fallback : aucune template ne matche → grille simple
+                photos = [
+                    _make_photo_dict(r[0]) for r in remaining
+                ]
                 if photos:
                     pages.append({
                         "style": "grille",
@@ -417,13 +435,44 @@ def arrange_pages_from_scores_v3(
                     })
                 break
 
-            batch = rest[idx:idx + batch_size]
-            collage_photos = _layout_rectpack_collage(batch)
-            pages.append({
-                "style": "collage_rectpack",
-                "data": {"photos": collage_photos},
-            })
-            idx += batch_size
+            consume = template.photo_zones
+
+            # Adapter si pas assez de photos
+            if len(remaining) < consume:
+                all_templates = get_all_templates()
+                smaller = sorted(
+                    [t for t in all_templates
+                     if t.id != "T9" and t.photo_zones <= len(remaining)],
+                    key=lambda t: t.photo_zones,
+                    reverse=True,
+                )
+                if smaller:
+                    template = smaller[0]
+                    consume = template.photo_zones
+                else:
+                    photos = [
+                        _make_photo_dict(r[0]) for r in remaining
+                    ]
+                    if photos:
+                        pages.append({
+                            "style": "grille",
+                            "data": {"photos": photos, "title": ""},
+                        })
+                    break
+
+            batch = remaining[:consume]
+
+            # Dispatch photos + texte
+            dispatcher = PhotoDispatcher(template)
+            assignments = dispatcher.dispatch(batch)
+            assignments = text_gen.generate_texts(assignments, batch)
+
+            # Convertir en page
+            page = template_assignments_to_pages(assignments, template)
+            pages.append(page)
+
+            window_templates_used.append(template.id)
+            idx += consume
 
         window_idx += 1
 
@@ -831,6 +880,12 @@ def preprocess_photos(pages):
                     f["path"] = desaturate_photo(f["path"], ds_amount)
                     count += 1
 
+        if "zones" in data:
+            for z in data["zones"]:
+                if z.get("type") == "photo" and z.get("photo_path"):
+                    z["photo_path"] = desaturate_photo(z["photo_path"], ds_amount)
+                    count += 1
+
     print(f"   ✓ {count} photos traitées")
 
 
@@ -913,6 +968,9 @@ def main():
     parser.add_argument("--enhance", choices=["default", "strong"], nargs="?",
                         const="default", default=None,
                         help="Retouche photo automatique avant scoring (default|strong)")
+    parser.add_argument("--template", "-t", choices=["T1","T2","T3","T4","T5","T6","T7","T8","T9"],
+                        default=None,
+                        help="Forcer un template spécifique (T1-T9) au lieu de la sélection auto")
     args = parser.parse_args()
 
     # Scanner les photos
@@ -1053,11 +1111,14 @@ def main():
             # Appliquer seulement la rotation EXIF
             photo_scores = preprocess_scored_photos(photo_scores, crop_dir=None)
 
-        # ── Nouveau dispatch v3 : fenêtre glissante ──
+        # ── Nouveau dispatch v3 : fenêtre glissante + templates structurés ──
         pages = arrange_pages_from_scores_v3(
             photo_scores,
             window_size=args.window_size,
+            forced_template_id=args.template,
         )
+        if args.template:
+            print(f"   📐 Template forcé : {args.template}")
         print(f"   📊 Dispatch v3 (fenêtre {args.window_size})")
 
         # Rapport JSON — reconstruire le dispatch depuis les pages v3
@@ -1067,14 +1128,25 @@ def main():
         score_by_path: Dict[str, Tuple] = {}
         for ps in photo_scores:
             score_by_path[str(Path(ps[0]).resolve())] = ps
-        dispatch: Dict[str, List] = {"heroique": [], "duo": [], "grille": []}
+        dispatch: Dict[str, List] = {"heroique": [], "duo": [], "grille": [], "template": []}
         for page in pages:
             style = page.get("style", "")
-            if style in ("titre", "credits"):
+            if style in ("titre", "credits", "blank"):
                 continue
             photos_in_page: List[Dict] = []
             if style == "heroique":
                 photos_in_page = [page["data"]["photo"]]
+            elif style.startswith("template_"):
+                # Nouvelles pages template T1-T9
+                zones = page["data"].get("zones", [])
+                for zone in zones:
+                    if zone.get("type") == "photo" and zone.get("photo_path"):
+                        photos_in_page.append({
+                            "path": zone["photo_path"],
+                            "label": Path(zone["photo_path"]).name,
+                            "zone_id": zone.get("id"),
+                            "size": zone.get("size"),
+                        })
             else:
                 photos_in_page = page["data"].get("photos", [])
             for photo in photos_in_page:
@@ -1082,6 +1154,8 @@ def main():
                 if resolved in score_by_path:
                     if style == "heroique":
                         dispatch["heroique"].append(score_by_path[resolved])
+                    elif style.startswith("template_"):
+                        dispatch["template"].append(score_by_path[resolved])
                     elif style == "grille":
                         dispatch["grille"].append(score_by_path[resolved])
                     else:
