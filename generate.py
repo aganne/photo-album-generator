@@ -47,6 +47,8 @@ from album_generator.scoring import (
     export_scoring_report, find_micro_events,
 )
 from album_generator.colors import extract_palette, generate_dynamic_css, apply_palette_to_html
+from album_generator.enhance import batch_enhance
+from album_generator.print_risk import compute_print_penalty_file
 
 
 # ── Chemins ─────────────────────────────────────────────────────────
@@ -908,6 +910,9 @@ def main():
                         help="Taille de la fenêtre glissante (défaut: 40)")
     parser.add_argument("--palette", action="store_true",
                         help="Extraire la palette automatique via Colormind (sinon palette configurée)")
+    parser.add_argument("--enhance", choices=["default", "strong"], nargs="?",
+                        const="default", default=None,
+                        help="Retouche photo automatique avant scoring (default|strong)")
     args = parser.parse_args()
 
     # Scanner les photos
@@ -972,6 +977,71 @@ def main():
         photo_scores.sort(key=lambda ps: exif_order.get(ps[0], 9999))
 
         print(f"   ✓ {len(photo_scores)}/{len(photo_files)} photos notées")
+
+        # ── Retouche photo --enhance ──
+        if args.enhance:
+            print(f"🖼️  Retouche photo activée (mode: {args.enhance})...")
+            enhanced_dir = OUTPUT_DIR / "enhanced"
+            enhanced_dir.mkdir(parents=True, exist_ok=True)
+
+            # Extraire les chemins originaux (avant rotation/crop)
+            original_paths = [ps[0] for ps in photo_scores]
+
+            enhanced_paths = batch_enhance(
+                original_paths, enhanced_dir,
+                level=args.enhance,
+                max_workers=min(os.cpu_count() or 4, 8),
+                max_dim=1024,  # 1024 px suffisant pour le scoring
+            )
+            print(f"   ✓ {len(enhanced_paths)} photos retouchées")
+
+            # Re-scorer les photos retouchées
+            enhanced_scores: List[Tuple[str, float, Dict[str, float]]] = []
+            enhanced_by_name = {
+                Path(p).name: p for p in enhanced_paths
+            }
+
+            # Mapping original → enhanced pour le print_risk
+            orig_by_name = {
+                Path(ps[0]).name: ps for ps in photo_scores
+            }
+
+            for ps in photo_scores:
+                orig_path = ps[0]
+                fname = Path(orig_path).name
+                enh_path = enhanced_by_name.get(fname)
+                if enh_path is None:
+                    # Fallback : garder l'original
+                    enhanced_scores.append(ps)
+                    continue
+
+                try:
+                    enh_total, enh_details = scorer.score(enh_path)
+                except Exception as exc:
+                    print(f"   ⚠️  Re-score échoué pour {fname}: {exc}")
+                    enhanced_scores.append(ps)
+                    continue
+
+                # Calculer la pénalité d'impression
+                try:
+                    penalty = compute_print_penalty_file(orig_path, enh_path)
+                except Exception:
+                    penalty = 0.0
+
+                adjusted = enh_total * (1.0 - penalty)
+
+                # Ajouter les métadonnées d'enhancement
+                enh_details["enhanced"] = True
+                enh_details["enhance_level"] = args.enhance
+                enh_details["print_risk"] = round(penalty, 4)
+                enh_details["score_raw"] = round(enh_total, 4)
+                enh_details["score_adjusted"] = round(adjusted, 4)
+
+                enhanced_scores.append((enh_path, adjusted, enh_details))
+
+            # Remplacer les scores
+            photo_scores = enhanced_scores
+            print(f"   📊 {len(photo_scores)} photos re-notées avec pénalité print_risk")
 
         # ── Smart crop + rotation EXIF ──
         if not args.no_smartcrop:

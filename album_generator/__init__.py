@@ -15,3 +15,5 @@ from .scoring import (
     SCORE_WEIGHTS,
 )
 from .colors import extract_palette, generate_dynamic_css, apply_palette_to_html
+from .enhance import auto_enhance, batch_enhance, auto_enhance_file, ENHANCE_PARAMS
+from .print_risk import compute_print_penalty, compute_print_penalty_file
