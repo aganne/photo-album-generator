@@ -1,0 +1,123 @@
+/* Application styles — Générateur d'Album Photo */
+/* Thème Soleil — couleurs chaudes et élégantes */
+
+/* En-tête bannière */
+.app-header {
+    background: linear-gradient(135deg, #fefcf5 0%, #f5ede0 50%, #e8cfa0 100%);
+    padding: 1.5rem 2rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    border-bottom: 3px solid #c49a5a;
+}
+.app-header h1 {
+    color: #3a2a1a;
+    font-size: 1.8rem;
+    margin: 0;
+}
+.app-header p {
+    color: #8a6a3a;
+    margin: 0.3rem 0 0 0;
+    font-size: 0.95rem;
+}
+
+/* Status cards */
+.status-card {
+    background: #ffffff;
+    border: 1px solid #e8cfa0;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 0.8rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.status-card h3 {
+    color: #3a2a1a;
+    margin: 0 0 0.3rem 0;
+    font-size: 1rem;
+}
+.status-card .label {
+    color: #8a6a3a;
+    font-size: 0.8rem;
+}
+.status-card .value {
+    color: #3a2a1a;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+/* Photo cards */
+.photo-card {
+    background: #ffffff;
+    border: 1px solid #e8dcc0;
+    border-radius: 8px;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s;
+}
+.photo-card:hover {
+    border-color: #c49a5a;
+    box-shadow: 0 2px 8px rgba(196,154,90,0.15);
+}
+.photo-card.selected {
+    border: 2px solid #4a7a2e;
+}
+.photo-card .photo-name {
+    font-weight: 500;
+    color: #3a2a1a;
+    font-size: 0.85rem;
+}
+.photo-card .photo-meta {
+    color: #8a6a3a;
+    font-size: 0.75rem;
+}
+.photo-card .score-badge {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+.score-hero { background: #d4edda; color: #155724; }
+.score-support { background: #fff3cd; color: #856404; }
+.score-filler { background: #f8d7da; color: #721c24; }
+
+/* Palette swatches */
+.palette-swatch {
+    width: 100%;
+    height: 40px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    margin-bottom: 0.3rem;
+}
+
+/* Preview album pages */
+.preview-page {
+    background: #fefcf5;
+    border: 1px solid #e8cfa0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    min-height: 200px;
+}
+
+/* Footer */
+.app-footer {
+    text-align: center;
+    color: #aaa;
+    font-size: 0.75rem;
+    padding: 2rem 0 0.5rem 0;
+    border-top: 1px solid #f0e8d8;
+    margin-top: 2rem;
+}
+
+/* Navigation sidebar */
+.nav-step {
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    margin-bottom: 0.3rem;
+    transition: all 0.2s;
+}
+.nav-step-active {
+    background: #f5ede0;
+    border-left: 3px solid #c49a5a;
+    font-weight: 600;
+}

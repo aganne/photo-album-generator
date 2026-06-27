@@ -24,3 +24,5 @@ Thumbs.db
 # Garder seulement les essentielles (.ttf) ; les .woff2 sont optionnelles
 fonts/*.woff2
 fonts/download_fonts.py
+.venv/
+_*.py

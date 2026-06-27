@@ -1,0 +1,156 @@
+# ── Configuration de l'Album Photo Generator ────────────────────────────
+# Fichier de configuration centralisé pour les services backend.
+# Utilisé par : app.py, onedrive_api.py, video_processing.py, db.py
+
+# ── Chemins ─────────────────────────────────────────────────────────────
+paths:
+  data_dir: "data"              # Données persistantes (SQLite, cache)
+  cache_dir: "data/cache"       # Cache local des photos/vidéos téléchargées
+  output_dir: "output"          # PDFs générés
+  voices_dir: "data/voices"     # Enregistrements vocaux
+  frames_dir: "data/frames"     # Frames extraites des vidéos
+  fonts_dir: "fonts"            # Polices d'impression
+
+# ── Base de données ─────────────────────────────────────────────────────
+database:
+  path: "data/albums.db"        # Fichier SQLite
+  pool_size: 5
+
+# ── OneDrive ────────────────────────────────────────────────────────────
+onedrive:
+  client_id: "22c49a22-d89f-42e2-a264-e0a1b3bdd151"   # Azure CLI client ID (public OAuth)
+  scopes:
+    - "Files.ReadWrite.All"
+    - "Files.Read.All"
+  token_cache: "~/.config/onedrive/token.json"          # Cache du token MSAL
+  base_folder: "Images/Pellicule"                        # Dossier racine des photos
+  download_concurrency: 4                                 # Téléchargements parallèles max
+
+# ── Albums (valeurs par défaut) ────────────────────────────────────────
+album_defaults:
+  palette_name: "Soleil"
+  enfant: ""
+  year: 2025
+  title: "Album Photo"
+  subtitle: "Année Mémorable"
+  author: "La Famille"
+
+# ── Palettes disponibles ────────────────────────────────────────────────
+palettes:
+  Soleil:
+    name: "Soleil ☀️"
+    bg_start: "#fefcf5"
+    bg_mid: "#f5ede0"
+    bg_end: "#e8cfa0"
+    band_top: "#8a6a3a"
+    band_bottom: "#c49a5a"
+    text_primary: "#3a2a1a"
+    text_secondary: "#5a3a1a"
+    text_tertiary: "#8a6a3a"
+    accent_1: "#c49a5a"
+    accent_2: "#e8cfa0"
+    accent_3: "#d4b888"
+    photo_border: "#ffffff"
+    deco_line: "#c49a5a"
+    desaturation: 10
+
+  Ocean:
+    name: "Océan 🌊"
+    bg_start: "#e8f4f8"
+    bg_mid: "#d0e8f0"
+    bg_end: "#a8d4e8"
+    band_top: "#1a5276"
+    band_bottom: "#2980b9"
+    text_primary: "#1a3a4a"
+    text_secondary: "#2c6e91"
+    text_tertiary: "#4a90b8"
+    accent_1: "#3498db"
+    accent_2: "#85c1e9"
+    accent_3: "#aed6f1"
+    photo_border: "#ffffff"
+    deco_line: "#3498db"
+    desaturation: 5
+
+  Foret:
+    name: "Forêt 🌲"
+    bg_start: "#f0f7ec"
+    bg_mid: "#e0efe0"
+    bg_end: "#c0dfc0"
+    band_top: "#2d5a27"
+    band_bottom: "#4a8c3f"
+    text_primary: "#1a3a1a"
+    text_secondary: "#2d5a27"
+    text_tertiary: "#4a8c3f"
+    accent_1: "#5cb85c"
+    accent_2: "#8fc98f"
+    accent_3: "#a8d8a8"
+    photo_border: "#ffffff"
+    deco_line: "#5cb85c"
+    desaturation: 5
+
+  Pastel:
+    name: "Pastel 🌸"
+    bg_start: "#fef5f7"
+    bg_mid: "#fce8ef"
+    bg_end: "#f8d5e3"
+    band_top: "#c94d7c"
+    band_bottom: "#e891b1"
+    text_primary: "#4a1a2e"
+    text_secondary: "#7a3a55"
+    text_tertiary: "#c94d7c"
+    accent_1: "#e891b1"
+    accent_2: "#f2b8cf"
+    accent_3: "#f8d5e3"
+    photo_border: "#ffffff"
+    deco_line: "#e891b1"
+    desaturation: 5
+
+  Crepuscule:
+    name: "Crépuscule 🌆"
+    bg_start: "#f5ece8"
+    bg_mid: "#e8d4cc"
+    bg_end: "#d4b0a0"
+    band_top: "#5a2a3a"
+    band_bottom: "#8a4a5a"
+    text_primary: "#2a1a1a"
+    text_secondary: "#4a2a2a"
+    text_tertiary: "#6a3a4a"
+    accent_1: "#8a4a5a"
+    accent_2: "#c89080"
+    accent_3: "#d4b0a0"
+    photo_border: "#ffffff"
+    deco_line: "#8a4a5a"
+    desaturation: 5
+
+# ── Scoring IA ──────────────────────────────────────────────────────────
+scoring:
+  default_weights:
+    smile: 0.25
+    sharpness: 0.20
+    composition: 0.15
+    eyes_open: 0.10
+    exposure: 0.10
+    faces_count: 0.10
+    contrast: 0.05
+    noise: 0.05
+  dispatch:
+    heroique_pct: 7          # % des meilleures photos en pleine page
+    duo_pct: 13              # % en duo
+    grille_pct: 80           # % en grille dense
+  window_size: 40            # Fenêtre glissante pour le dispatch
+
+# ── Extraction vidéo ────────────────────────────────────────────────────
+video:
+  top_n: 30                  # Nombre max de frames à extraire par vidéo
+  min_sharpness: 15.0        # Seuil minimum de netteté
+  frame_interval: 0.5        # Intervalle entre deux échantillons (secondes)
+  similarity_threshold: 0.92 # Seuil de dédoublonnage
+  quality_jpeg: 95           # Qualité de sauvegarde JPEG
+
+# ── Génération PDF ──────────────────────────────────────────────────────
+pdf:
+  dpi: 300
+  page_width_mm: 216.35
+  page_height_mm: 302.75
+  bleed_mm: 3.175
+  safe_margin_mm: 12.7
