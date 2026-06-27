@@ -60,7 +60,11 @@ def auto_enhance(
     Returns:
         Image retouchée (BGR, uint8).
     """
-    p = params or ENHANCE_PARAMS[level]
+    base = ENHANCE_PARAMS[level]
+    overrides = params or {}
+    p = {**base, **overrides}
+    for key in ("denoise", "clahe", "local_contrast", "unsharp_mask"):
+        p[key] = {**base.get(key, {}), **overrides.get(key, {})}
 
     # ── 1. Balance des blancs (Grey World) ──
     if p.get("white_balance") == "greyworld":
@@ -224,7 +228,10 @@ def auto_enhance_file(
         oh, ow = original_shape
         enhanced = cv2.resize(enhanced, (ow, oh), interpolation=cv2.INTER_LINEAR)
 
-    output_path = Path(output_dir) / Path(input_path).name
+    import hashlib
+    source = Path(input_path).resolve()
+    path_hash = hashlib.sha256(str(source).encode()).hexdigest()[:12]
+    output_path = Path(output_dir) / f"{path_hash}_{source.name}"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(output_path), enhanced)
     return str(output_path.resolve())

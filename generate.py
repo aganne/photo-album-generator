@@ -991,7 +991,7 @@ def main():
                 original_paths, enhanced_dir,
                 level=args.enhance,
                 max_workers=min(os.cpu_count() or 4, 8),
-                max_dim=1024,  # 1024 px suffisant pour le scoring
+                max_dim=None,  # Pleine résolution pour l'impression (scoring downscale interne)
             )
             print(f"   ✓ {len(enhanced_paths)} photos retouchées")
 
@@ -1025,8 +1025,10 @@ def main():
                 # Calculer la pénalité d'impression
                 try:
                     penalty = compute_print_penalty_file(orig_path, enh_path)
-                except Exception:
-                    penalty = 0.0
+                except Exception as exc:
+                    print(f"   ⚠️  print_risk échoué pour {fname}: {exc}")
+                    enhanced_scores.append(ps)
+                    continue
 
                 adjusted = enh_total * (1.0 - penalty)
 

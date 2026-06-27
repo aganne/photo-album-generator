@@ -156,6 +156,7 @@ def _halo_detection(
     sample_mask[::4] = True  # 25% des pixels de bord
     edge_ys = edge_ys[sample_mask]
     edge_xs = edge_xs[sample_mask]
+    sampled_edge_count = max(len(edge_ys), 1)
 
     for i in range(len(edge_ys)):
         y, x = edge_ys[i], edge_xs[i]
@@ -184,7 +185,7 @@ def _halo_detection(
         if center > neighbor_pos and center > neighbor_neg and center > orig_val + 3.0:
             overshoot_count += 1
 
-    halo_ratio = overshoot_count / edge_count
+    halo_ratio = overshoot_count / sampled_edge_count
 
     # Pénalité : halo_ratio > 1% → significatif
     if halo_ratio > 0.01:
