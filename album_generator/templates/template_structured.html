@@ -1,0 +1,53 @@
+{# Template structuré générique T1-T9 — rendu CSS Grid dynamique #}
+{% set tmpl_id = page.data.template_id or "T1" %}
+{% set tmpl_name = page.data.template_name or "structuré" %}
+
+<div class="page page-template page-template-{{ tmpl_id }}">
+  <!-- En-tête template -->
+  <div class="template-header">
+    <span class="template-badge">{{ tmpl_id }}</span>
+    <span class="template-name">{{ tmpl_name }}</span>
+  </div>
+
+  <!-- Grille des zones -->
+  <div class="template-grid template-grid-{{ tmpl_id }}">
+    {% for zone in page.data.zones %}
+      {% set zone_grid_col = zone.col + 1 %}
+      {% set zone_grid_row = zone.row + 1 %}
+      {% set zone_span_col = zone.width %}
+      {% set zone_span_row = zone.height %}
+
+      <div class="zone zone-{{ zone.id }} zone-{{ zone.type }} zone-{{ zone.size }}"
+           style="grid-column: {{ zone_grid_col }} / span {{ zone_span_col }};
+                  grid-row: {{ zone_grid_row }} / span {{ zone_span_row }};">
+
+        {% if zone.type == "photo" and zone.photo_path %}
+          <div class="zone-photo-wrapper">
+            {% set img_path = zone.photo_path.replace('\\', '/') %}
+            <img src="file://{{ img_path }}" alt="Photo {{ zone.id }}"
+                 class="zone-photo-img" loading="lazy">
+            {% if zone.score is defined and zone.score > 0 %}
+            <div class="zone-score-badge">
+              {{ "%.0f"|format(zone.score * 100) }}
+            </div>
+            {% endif %}
+          </div>
+        {% elif zone.type == "photo" %}
+          <!-- Zone photo vide -->
+          <div class="zone-photo-empty">
+            <span class="zone-empty-icon">🖼</span>
+            <span class="zone-empty-label">photo</span>
+          </div>
+        {% elif zone.type == "text" %}
+          <div class="zone-text-content">
+            {% if zone.rendered_text %}
+              <p class="zone-text-rendered">{{ zone.rendered_text }}</p>
+            {% else %}
+              <p class="zone-text-placeholder">—</p>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
