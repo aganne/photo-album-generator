@@ -418,6 +418,10 @@ def arrange_pages_from_scores_v3(
         while idx < len(rest):
             remaining = rest[idx:]
 
+            # Arrêter s'il ne reste aucune photo
+            if not remaining:
+                break
+
             if forced_template_id:
                 template = selector.select_by_id(forced_template_id)
             else:
