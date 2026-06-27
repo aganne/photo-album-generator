@@ -439,13 +439,18 @@ def arrange_pages_from_scores_v3(
 
             # Adapter si pas assez de photos
             if len(remaining) < consume:
-                all_templates = get_all_templates()
-                smaller = sorted(
-                    [t for t in all_templates
-                     if t.id != "T9" and t.photo_zones <= len(remaining)],
-                    key=lambda t: t.photo_zones,
-                    reverse=True,
-                )
+                smaller = []
+                if forced_template_id:
+                    # Forcé par l'utilisateur → dispatch() gère les short batches
+                    consume = min(consume, len(remaining))
+                else:
+                    all_templates = get_all_templates()
+                    smaller = sorted(
+                        [t for t in all_templates
+                         if t.id != "T9" and t.photo_zones <= len(remaining)],
+                        key=lambda t: t.photo_zones,
+                        reverse=True,
+                    )
                 if smaller:
                     template = smaller[0]
                     consume = template.photo_zones

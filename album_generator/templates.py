@@ -243,8 +243,8 @@ _TEMPLATES_JSON: List[Dict[str, Any]] = [
         "id": "T5",
         "name": "colonne-centrale",
         "description": "Hero vertical central entouré de 6 zones latérales",
-        "total_zones": 8,
-        "photo_zones": 6,
+        "total_zones": 7,
+        "photo_zones": 5,
         "text_zones": 2,
         "zones": [
             {"id": "small_tl", "type": "photo", "size": "small",
@@ -455,7 +455,8 @@ class TemplateSelector:
 
         top_score = max(ps[1] for ps in photo_scores)
         photo_count = len(photo_scores)
-        used = set(used_templates or [])
+        # Ne bloquer que le template précédent (pas tous les utilisés)
+        last_used_id = used_templates[-1] if used_templates else None
 
         candidates = []
         for t in self._templates:
@@ -474,8 +475,8 @@ class TemplateSelector:
             if top_score < hero_min:
                 continue
 
-            # Éviter la répétition du même template consécutif
-            if t.id in used:
+            # Éviter seulement la répétition consécutive du même template
+            if t.id == used_last_id:
                 continue
 
             # Score de matching : écart entre top_score et hero_min
@@ -689,17 +690,17 @@ class TextGenerator:
             from PIL import Image
             from PIL.ExifTags import TAGS
 
-            img = Image.open(photo_path)
-            exif_data = img._getexif()
-            if not exif_data:
+            with Image.open(photo_path) as img:
+                exif_data = img._getexif()
+                if not exif_data:
+                    return None
+
+                for tag_id, value in exif_data.items():
+                    tag_name = TAGS.get(tag_id, "")
+                    if tag_name == "DateTimeOriginal":
+                        return datetime.strptime(str(value), "%Y:%m:%d %H:%M:%S")
+
                 return None
-
-            for tag_id, value in exif_data.items():
-                tag_name = TAGS.get(tag_id, "")
-                if tag_name == "DateTimeOriginal":
-                    return datetime.strptime(str(value), "%Y:%m:%d %H:%M:%S")
-
-            return None
         except Exception:
             return None
 
@@ -893,7 +894,7 @@ def new_arrange_pages_with_templates(
         window_sorted = sorted(window, key=lambda x: x[1], reverse=True)
 
         # ── Héroïque : top 1 ──
-        top_path, top_score, top_details = window_sorted[0]
+        top_path, _, _ = window_sorted[0]
         pages.append({
             "style": "heroique",
             "data": {

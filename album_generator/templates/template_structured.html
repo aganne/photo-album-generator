@@ -1,6 +1,6 @@
 {# Template structuré générique T1-T9 — rendu CSS Grid dynamique #}
-{% set tmpl_id = page.template_id or "T1" %}
-{% set tmpl_name = page.template_name or "structuré" %}
+{% set tmpl_id = page.data.template_id or "T1" %}
+{% set tmpl_name = page.data.template_name or "structuré" %}
 
 <div class="page page-template page-template-{{ tmpl_id }}">
   <!-- En-tête template -->
@@ -11,7 +11,7 @@
 
   <!-- Grille des zones -->
   <div class="template-grid template-grid-{{ tmpl_id }}">
-    {% for zone in page.zones %}
+    {% for zone in page.data.zones %}
       {% set zone_grid_col = zone.col + 1 %}
       {% set zone_grid_row = zone.row + 1 %}
       {% set zone_span_col = zone.width %}

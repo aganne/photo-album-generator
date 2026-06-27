@@ -136,7 +136,7 @@ html, body {
   left: 0;
   width: 100%;
   text-align: center;
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 7pt;
   color: #8a6a3a;
   z-index: 3;
@@ -187,7 +187,7 @@ html, body {
   margin-bottom: 1.5mm;
 }
 .heroique-overlay .date-line {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 8pt;
   color: #8a6a3a;
   letter-spacing: 1pt;
@@ -237,7 +237,7 @@ html, body {
   position: absolute;
   bottom: 3mm;
   left: 3mm;
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 6pt;
   color: #8a6a3a;
   background: rgba(254,252,245,0.85);
@@ -273,7 +273,7 @@ html, body {
   right: 3mm;
   background: rgba(196,154,90,0.85);
   color: #fff;
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 6.5pt;
   padding: 0.5mm 1.5mm;
   border-radius: 0.5mm;
@@ -423,7 +423,7 @@ html, body {
   letter-spacing: 0.5pt;
 }
 .typo-date {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 8pt;
   color: #8a6a3a;
   letter-spacing: 1.5pt;
@@ -434,7 +434,7 @@ html, body {
   margin-top: 3mm;
 }
 .typo-body p {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 10pt;
   color: #5a3a1a;
   line-height: 1.7;
@@ -483,14 +483,14 @@ html, body {
   font-weight: 400;
 }
 .hero-text .date-line {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 8pt;
   color: #8a6a3a;
   letter-spacing: 1pt;
   margin-bottom: 3mm;
 }
 .hero-text p {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 9.5pt;
   color: #5a3a1a;
   line-height: 1.6;
@@ -651,7 +651,7 @@ html, body {
   margin-bottom: 1.5mm;
 }
 .video-54-caption .meta {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 6.5pt;
   color: #8a6a3a;
   letter-spacing: 0.5pt;
@@ -784,7 +784,7 @@ html, body {
   margin-bottom: 1.5mm;
 }
 .video-caption .meta {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 7pt;
   color: #8a6a3a;
   letter-spacing: 0.5pt;
@@ -816,7 +816,7 @@ html, body {
   margin: 3mm auto;
 }
 .titre-page .subtitle {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 12pt;
   color: #8a6a3a;
   letter-spacing: 3pt;
@@ -824,7 +824,7 @@ html, body {
   margin-bottom: 5mm;
 }
 .titre-page .author {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 9pt;
   color: #5a3a1a;
   letter-spacing: 1pt;
@@ -847,7 +847,7 @@ html, body {
   margin-bottom: 4mm;
 }
 .credits-page p {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 9pt;
   color: #5a3a1a;
   line-height: 2;
@@ -882,7 +882,7 @@ html, body {
 }
 
 .template-name {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 7pt;
   color: #8a6a3a;
   text-transform: uppercase;
@@ -934,7 +934,7 @@ html, body {
 }
 
 .zone-empty-label {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 6pt;
   color: #8a6a3a;
   text-transform: uppercase;
@@ -947,7 +947,7 @@ html, body {
   right: 2mm;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 6pt;
   padding: 0.3mm 1.5mm;
   border-radius: 1mm;
@@ -977,7 +977,7 @@ html, body {
 }
 
 .zone-text-placeholder {
-  font-family: "Satoshi", sans-serif;
+  font-family: Satoshi, sans-serif;
   font-size: 7pt;
   color: #e8cfa0;
   margin: 0;
