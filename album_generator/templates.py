@@ -476,7 +476,7 @@ class TemplateSelector:
                 continue
 
             # Éviter seulement la répétition consécutive du même template
-            if t.id == used_last_id:
+            if t.id == last_used_id:
                 continue
 
             # Score de matching : écart entre top_score et hero_min

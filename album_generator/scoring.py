@@ -189,6 +189,10 @@ class PhotoScorer:
         edge_penalty = self._face_edge_penalty(img_full, faces)
         total *= edge_penalty
 
+        # ── Pénalité grain/bruit dans les zones d'ombre ──
+        shadow_penalty = self._shadow_noise_penalty(img_small)
+        total *= shadow_penalty
+
         # ── Cache pour smart_crop (thread-safe) ──
         with PhotoScorer._face_cache_lock:
             PhotoScorer._face_cache[str(path)] = (list(faces), img_full.shape)
@@ -272,6 +276,71 @@ class PhotoScorer:
             return float(quality)
         except Exception:
             return 0.5
+
+    # ── Pénalité bruit dans les zones d'ombre (grain ISO élevé) ──
+    _SHADOW_NOISE_THRESHOLD = 60.0
+
+    @staticmethod
+    def _shadow_noise_penalty(img: np.ndarray) -> float:
+        """Pénalise les photos granuleuses dans les zones sombres.
+
+        Détecte le bruit via la variance locale des blocs 8×8 dans
+        les zones d'ombre (luminosité moyenne < 80). Si la variance
+        moyenne des blocs sombres dépasse le seuil, la photo est
+        pénalisée d'un facteur 0.7 (grain visible à l'impression).
+
+        Returns:
+            0.7 si bruit excessif détecté, 1.0 sinon.
+        """
+        try:
+            h, w = img.shape[:2]
+            if max(h, w) > PhotoScorer._NOISE_MAX_DIM:
+                scale = PhotoScorer._NOISE_MAX_DIM / max(h, w)
+                small = cv2.resize(img, (int(w * scale), int(h * scale)),
+                                   interpolation=cv2.INTER_AREA)
+                gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+            h, w = gray.shape
+            block_size = 8
+            n_blocks_h = h // block_size
+            n_blocks_w = w // block_size
+            if n_blocks_h < 4 or n_blocks_w < 4:
+                return 1.0
+
+            # Recadrer au multiple de block_size
+            gray = gray[:n_blocks_h * block_size, :n_blocks_w * block_size]
+
+            # Reshape → (N_blocks, block_size²)
+            blocks = gray.reshape(
+                n_blocks_h, block_size, n_blocks_w, block_size
+            )
+            blocks = blocks.transpose(0, 2, 1, 3)
+            blocks = blocks.reshape(n_blocks_h * n_blocks_w,
+                                    block_size * block_size)
+
+            # Moyenne de luminance par bloc
+            block_means = np.mean(blocks.astype(np.float64), axis=1)
+
+            # Sélectionner les blocs sombres (luminosité < 80)
+            shadow_mask = block_means < 80.0
+            shadow_blocks = blocks[shadow_mask]
+
+            if len(shadow_blocks) < 10:
+                # Pas assez de zones d'ombre pour juger
+                return 1.0
+
+            # Variance dans les blocs sombres uniquement
+            shadow_vars = np.var(shadow_blocks.astype(np.float64), axis=1)
+            mean_shadow_var = float(np.mean(shadow_vars))
+
+            if mean_shadow_var > PhotoScorer._SHADOW_NOISE_THRESHOLD:
+                return 0.7  # pénalité grain
+
+            return 1.0
+        except Exception:
+            return 1.0
 
     # ── Détection de contenu (API tasks) ──────────────────────────
 
