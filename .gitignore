@@ -25,3 +25,4 @@ Thumbs.db
 fonts/*.woff2
 fonts/download_fonts.py
 .venv/
+_*.py
