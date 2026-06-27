@@ -186,7 +186,7 @@ _TEMPLATES_JSON: List[Dict[str, Any]] = [
         "name": "duo-colonnes",
         "description": "Deux colonnes verticales — hero à gauche, 2 medium empilées à droite, texte large en bas",
         "total_zones": 6,
-        "photo_zones": 4,
+        "photo_zones": 5,
         "text_zones": 1,
         "best_for": "Deux photos fortes en parallèle (before/after, duo) + légende développée",
         "zones": [
@@ -209,7 +209,7 @@ _TEMPLATES_JSON: List[Dict[str, Any]] = [
         "id": "P3",
         "name": "triptyque-60-40",
         "description": "60% haut = 2 photos hero côte à côte + 40% bas = texte EXIF long",
-        "total_zones": 4,
+        "total_zones": 3,
         "photo_zones": 2,
         "text_zones": 1,
         "best_for": "Événement avec 2 photos fortes + longue description narrative (Anniversaire, Mariage)",
@@ -227,7 +227,7 @@ _TEMPLATES_JSON: List[Dict[str, Any]] = [
         "id": "P4",
         "name": "mosaique-portrait",
         "description": "5 photos en mosaïque verticale — medium large en haut, 2 medium côte à côte, small en bas + texte",
-        "total_zones": 7,
+        "total_zones": 6,
         "photo_zones": 5,
         "text_zones": 1,
         "best_for": "5 photos de qualité moyenne à bonne — narrative riche, densité équilibrée",
@@ -252,7 +252,7 @@ _TEMPLATES_JSON: List[Dict[str, Any]] = [
         "name": "asymetrique-vertical",
         "description": "Hero gauche verticale + bloc droit (medium + texte) + medium large en bas + 2 small",
         "total_zones": 6,
-        "photo_zones": 4,
+        "photo_zones": 5,
         "text_zones": 1,
         "best_for": "Photo hero forte + 3 secondaires + légende — l'équivalent portrait du T2 original",
         "zones": [
@@ -466,10 +466,7 @@ class TemplateSelector:
             candidates.append((match_score, t))
 
         if not candidates:
-            # Fallback : aucun template ne matche → retourner P6 (le plus tolérant)
-            for t in self._templates:
-                if t.id == "P6":
-                    return t
+            # Fallback : aucun template ne matche → None (les appelants tombent sur grille)
             return None
 
         # Prendre le meilleur match (plus petit écart)

@@ -444,8 +444,8 @@ def arrange_pages_from_scores_v3(
             # Adapter si pas assez de photos
             if len(remaining) < consume:
                 smaller = []
-                if forced_template_id:
-                    # Forcé par l'utilisateur → dispatch() gère les short batches
+                if forced_template_id or template.id == "P6":
+                    # Forcé par l'utilisateur ou P6 tolérant → dispatch() gère les short batches
                     consume = min(consume, len(remaining))
                 else:
                     all_templates = get_all_templates()
