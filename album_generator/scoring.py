@@ -812,15 +812,13 @@ def extract_exif_date(image_path: str | Path) -> Optional[datetime]:
 
 
 def sort_by_exif_date(
-    photo_paths: List[Path], strict: bool = False,
-    max_year: int = 2014,
+    photo_paths: List[Path], strict: bool = False
 ) -> List[Path]:
-    """Trie par date EXIF. Dates > max_year sont traitées comme sans date."""
     dated = []
     undated = []
     for p in photo_paths:
         dt = extract_exif_date(p)
-        if dt and dt.year <= max_year:
+        if dt:
             dated.append((dt, p))
         else:
             undated.append(p)
