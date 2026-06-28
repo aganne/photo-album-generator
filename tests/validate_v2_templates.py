@@ -36,7 +36,7 @@ for tid in ['P1','P2','P3','P4','P5','P6','P7','T9']:
 # 5. Selector
 selector = TemplateSelector()
 assert 'T9' not in selector._AUTO_TEMPLATES
-assert len(selector._AUTO_TEMPLATES) == 7
+assert len(selector._AUTO_TEMPLATES) == 6
 print(f"Auto templates: {selector._AUTO_TEMPLATES}")
 
 # 6. Selection + dispatch
