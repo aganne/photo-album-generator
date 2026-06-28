@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -31,10 +32,21 @@ def load_templates(path: Optional[Path] = None) -> Dict[str, Dict]:
     return {t["id"]: t for t in templates}
 
 
-# IDs réservés pour les pages spéciales
-HERO_IDS = ["N3", "N7"]  # Templates héro : 1 par fenêtre, alternent
-MAX_PER_WINDOW = {"N6": 2}  # Templates limités
-REGULAR_IDS = ["N1", "N2", "N9", "N10", "N11", "N12"]  # Templates standards
+def _derive_ids(tpl_by_id: Dict[str, Dict]) -> Tuple[List[str], Dict[str, int], List[str]]:
+    """Dérive les IDs spéciaux depuis les métadonnées des templates (source unique).
+
+    Returns:
+        (hero_ids, max_per_window, regular_ids)
+    """
+    hero_ids = sorted([tid for tid, t in tpl_by_id.items() if t.get("hero")])
+    max_per_window = {tid: t["max_per_window"] for tid, t in tpl_by_id.items() if "max_per_window" in t}
+    special = set(hero_ids) | set(max_per_window.keys())
+    regular_ids = sorted([tid for tid in tpl_by_id if tid not in special])
+    if not hero_ids:
+        hero_ids = ["N3", "N7"]  # fallback
+    if not regular_ids:
+        regular_ids = ["N1", "N2", "N9", "N10", "N11", "N12"]  # fallback
+    return hero_ids, max_per_window, regular_ids
 
 
 def dispatch_album(
@@ -46,8 +58,9 @@ def dispatch_album(
 
     Règles par fenêtre de window_size photos (triées chrono EXIF) :
     1. Hero : 1 page N3 ou N7 (alterne). Meilleures photos.
-    2. N6 : max 2 pages.
-    3. Reste : templates N1,N2,N9,N10,N11,N12 en ordre aléatoire.
+       Skip si fenêtre trop petite pour le template.
+    2. Templates avec max_per_window : max N pages.
+    3. Reste : templates standards en ordre aléatoire, toutes les photos consommées.
 
     Args:
         photo_scores: liste de (path, score, details) triée EXIF
@@ -57,10 +70,10 @@ def dispatch_album(
     Returns:
         Liste de (template_id, [photo_paths], is_hero) par page.
     """
-    import random
-
     if tpl_by_id is None:
         tpl_by_id = load_templates()
+
+    hero_ids, max_per_window, regular_ids = _derive_ids(tpl_by_id)
 
     pages: List[Tuple[str, List[str], bool]] = []
     hero_toggle = 0
@@ -70,60 +83,106 @@ def dispatch_album(
         if not window:
             break
 
-        # Trier par score décroissant (meilleures photos en premier)
         window_sorted = sorted(window, key=lambda x: x[1], reverse=True)
 
-        # ── Hero ──
-        hid = HERO_IDS[hero_toggle % len(HERO_IDS)]
+        # ── Hero (skip si fenêtre trop petite) ──
+        hid = hero_ids[hero_toggle % len(hero_ids)]
         ht = tpl_by_id[hid]
         hn = sum(1 for z in ht["zones"] if z["type"] == "photo")
-        hpaths = [ws[0] for ws in window_sorted[:hn]]
-        pages.append((hid, hpaths, True))
-        hero_toggle += 1
 
-        used = set(hpaths)
-        remaining = [p[0] for p in window if p[0] not in used]
+        if len(window_sorted) >= hn:
+            hpaths = [ws[0] for ws in window_sorted[:hn]]
+            pages.append((hid, hpaths, True))
+            hero_toggle += 1
+            used = set(hpaths)
+            remaining = [p[0] for p in window if p[0] not in used]
+        else:
+            remaining = [p[0] for p in window]
 
-        # ── N6: max 2 ──
-        n6n = sum(1 for z in tpl_by_id["N6"]["zones"] if z["type"] == "photo")
+        # ── Templates avec max_per_window ──
+        tpl_sizes_all = {tid: sum(1 for z in tpl_by_id[tid]["zones"] if z["type"] == "photo")
+                         for tid in tpl_by_id}
+
         ri = 0
-        n6_count = 0
-        while n6_count < MAX_PER_WINDOW.get("N6", 2) and ri + n6n <= len(remaining):
-            pages.append(("N6", remaining[ri : ri + n6n], False))
-            ri += n6n
-            n6_count += 1
+        for tid, limit in sorted(max_per_window.items()):
+            count = 0
+            rn = tpl_sizes_all[tid]
+            while count < limit and ri + rn <= len(remaining):
+                pages.append((tid, remaining[ri:ri + rn], False))
+                ri += rn
+                count += 1
 
-        # ── Templates standards (ordre aléatoire) ──
-        after_n6 = remaining[ri:]
-        order = list(REGULAR_IDS)
+        # ── Templates standards (remplissage exact) ──
+        after_special = remaining[ri:]
+        if not after_special:
+            continue
+
+        order = list(regular_ids)
         random.shuffle(order)
 
-        # Pré-calculer les tailles
-        tpl_sizes = {tid: sum(1 for z in tpl_by_id[tid]["zones"] if z["type"] == "photo") for tid in order}
+        # Knapsack-like: trouver la meilleure combinaison pour ne rien perdre
+        best_pages = _pack_photos(after_special, order, tpl_sizes_all)
+        for tid, batch in best_pages:
+            pages.append((tid, batch, False))
 
+    return pages
+
+
+def _pack_photos(
+    photos: List[str],
+    template_order: List[str],
+    tpl_sizes: Dict[str, int],
+) -> List[Tuple[str, List[str]]]:
+    """Pack les photos restantes sans en perdre.
+
+    Essaie l'ordre aléatoire jusqu'à ce que toutes les photos soient consommées.
+    Si l'ordre échoue, réessaie avec un nouvel ordre (max 50 tentatives).
+    En dernier recours, utilise le plus grand template qui rentre.
+    """
+    for _ in range(50):
+        result: List[Tuple[str, List[str]]] = []
+        idx = 0
         tpl_idx = 0
-        ri2 = 0
-        while ri2 < len(after_n6):
-            tid = order[tpl_idx % len(order)]
+        while idx < len(photos):
+            tid = template_order[tpl_idx % len(template_order)]
             rn = tpl_sizes[tid]
-
-            if ri2 + rn <= len(after_n6):
-                pages.append((tid, after_n6[ri2 : ri2 + rn], False))
-                ri2 += rn
+            if idx + rn <= len(photos):
+                result.append((tid, photos[idx:idx + rn]))
+                idx += rn
             else:
-                # Dernier batch : choisir le plus grand template qui rentre
-                remain = len(after_n6) - ri2
+                remain = len(photos) - idx
                 fitting = sorted(
-                    [x for x in order if tpl_sizes[x] <= remain],
+                    [x for x in template_order if tpl_sizes[x] <= remain],
                     key=lambda x: tpl_sizes[x],
                     reverse=True,
                 )
                 if fitting:
                     fn = tpl_sizes[fitting[0]]
-                    pages.append((fitting[0], after_n6[ri2 : ri2 + fn], False))
-                    ri2 += fn
+                    result.append((fitting[0], photos[idx:idx + fn]))
+                    idx += fn
                 else:
-                    ri2 = len(after_n6)
+                    break  # cet ordre a échoué
             tpl_idx += 1
 
-    return pages
+        if idx == len(photos):
+            return result  # toutes les photos consommées ✓
+
+        random.shuffle(template_order)
+
+    # Fallback: greedy avec le plus grand template qui rentre
+    result = []
+    idx = 0
+    while idx < len(photos):
+        remain = len(photos) - idx
+        fitting = sorted(
+            [x for x in template_order if tpl_sizes[x] <= remain],
+            key=lambda x: tpl_sizes[x],
+            reverse=True,
+        )
+        if fitting:
+            fn = tpl_sizes[fitting[0]]
+            result.append((fitting[0], photos[idx:idx + fn]))
+            idx += fn
+        else:
+            break
+    return result
