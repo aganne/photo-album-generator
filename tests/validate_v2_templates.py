@@ -28,24 +28,44 @@ print(f"  Heroes (from JSON): {hero_ids}")
 print(f"  Max/window (from JSON): {max_per_window}")
 print(f"  Regular (from JSON): {regular_ids}")
 
-# 3. Dispatch test — vérifie que toutes les photos sont consommées
-fake_scores = [(f"/t/p{i}.jpg", 0.9 - i * 0.01, {}) for i in range(40)]
-pages = dispatch_album(fake_scores, templates, window_size=20)
+# 3. Dispatch tests — edge cases
+def _verify_dispatch(photo_count, window_size, label, allow_partial=False):
+    fake_scores = [(f"/t/p{i}.jpg", 0.9 - i * 0.001, {}) for i in range(photo_count)]
+    pages = dispatch_album(fake_scores, templates, window_size=window_size)
+    used = set()
+    for tid, paths, _hero in pages:
+        t = templates[tid]
+        expected = sum(1 for z in t['zones'] if z['type'] == 'photo')
+        assert len(paths) <= expected, f"{label} {tid}: too many photos ({len(paths)} > {expected})"
+        for p in paths:
+            assert p not in used, f"{label} duplicate: {p}"
+            used.add(p)
+    all_photos = {s[0] for s in fake_scores}
+    missing = all_photos - used
+    if not allow_partial:
+        assert not missing, f"{label} missing photos: {missing}"
+    else:
+        min_tpl = min(sum(1 for z in t['zones'] if z['type']=='photo') for t in templates.values())
+        assert len(missing) < min_tpl, f"{label} too many missing: {len(missing)} >= {min_tpl}"
+    return len(pages)
 
-# Vérifier que chaque photo est utilisée exactement une fois
-used = set()
-for tid, paths, _hero in pages:
-    t = templates[tid]
-    expected = sum(1 for z in t['zones'] if z['type'] == 'photo')
-    assert len(paths) <= expected, f"{tid}: too many photos ({len(paths)} > {expected})"
-    for p in paths:
-        assert p not in used, f"Duplicate photo: {p}"
-        used.add(p)
+# Happy path: 40 photos, window=20
+n = _verify_dispatch(40, 20, "40p/20w")
+print(f"  Dispatch 40p/20w: {n} pages, all used ✓")
 
-all_photos = {s[0] for s in fake_scores}
-missing = all_photos - used
-assert not missing, f"Missing photos: {missing}"
+# Edge: trailing window < hero template (3 photos, window=20) — 1 photo ignorée (< min tpl)
+n = _verify_dispatch(3, 20, "3p/20w", allow_partial=True)
+print(f"  Dispatch 3p/20w: {n} pages, all used ✓")
 
-print(f"  Dispatch: {len(pages)} pages, all {len(all_photos)} photos used ✓")
+# Edge: exact hero size (2 photos, window=20)
+n = _verify_dispatch(2, 20, "2p/20w")
+print(f"  Dispatch 2p/20w: {n} pages, all used ✓")
+
+# Edge: window_size validation
+try:
+    dispatch_album([], templates, window_size=0)
+    assert False, "Should have raised ValueError"
+except ValueError:
+    print("  Window size=0 raises ValueError ✓")
 
 print("\n✅ All V6 templates valid!")

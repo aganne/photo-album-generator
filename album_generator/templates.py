@@ -73,6 +73,9 @@ def dispatch_album(
     if tpl_by_id is None:
         tpl_by_id = load_templates()
 
+    if window_size <= 0:
+        raise ValueError(f"window_size must be > 0, got {window_size}")
+
     hero_ids, max_per_window, regular_ids = _derive_ids(tpl_by_id)
 
     pages: List[Tuple[str, List[str], bool]] = []
@@ -115,6 +118,11 @@ def dispatch_album(
         # ── Templates standards (remplissage exact) ──
         after_special = remaining[ri:]
         if not after_special:
+            continue
+
+        # Si moins de photos que le plus petit template, on ignore (queue de fenêtre)
+        min_size = min(tpl_sizes_all.values())
+        if len(after_special) < min_size:
             continue
 
         order = list(regular_ids)
@@ -169,20 +177,19 @@ def _pack_photos(
 
         random.shuffle(template_order)
 
-    # Fallback: greedy avec le plus grand template qui rentre
+    # Fallback: greedy avec le plus grand template qui rentre (tous les templates)
+    all_ids = list(tpl_sizes.keys())
+    all_ids.sort(key=lambda x: tpl_sizes[x], reverse=True)
     result = []
     idx = 0
     while idx < len(photos):
         remain = len(photos) - idx
-        fitting = sorted(
-            [x for x in template_order if tpl_sizes[x] <= remain],
-            key=lambda x: tpl_sizes[x],
-            reverse=True,
-        )
+        fitting = [x for x in all_ids if tpl_sizes[x] <= remain]
         if fitting:
             fn = tpl_sizes[fitting[0]]
             result.append((fitting[0], photos[idx:idx + fn]))
             idx += fn
         else:
+            # Reste < plus petit template → ignoré (queue de fenêtre)
             break
     return result
