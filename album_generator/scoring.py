@@ -717,57 +717,27 @@ class PhotoScorer:
 
     @staticmethod
     def fix_exif_rotation(image_path: str | Path, output_dir: str | Path) -> str | None:
-        """Corrige la rotation EXIF d'une image sans modifier l'original.
+        """Corrige la rotation EXIF avec Pillow (ImageOps.exif_transpose).
 
-        Lit la balise EXIF 0x0112 (Orientation) et applique la
-        rotation correspondante avec Pillow.  Écrit une copie
-        pivotée dans `output_dir` et retourne le nouveau chemin.
-        Retourne None si aucune correction n'est nécessaire.
-
-        Args:
-            image_path: chemin de l'image source (jamais modifié)
-            output_dir: répertoire où écrire la copie pivotée
-
-        Returns:
-            Chemin de la copie pivotée, ou None si pas de rotation.
+        Plus fiable que la lecture manuelle de la balise 0x0112 car
+        Pillow gère tous les cas d'orientation (y compris mirror).
         """
-        from PIL import Image
+        from PIL import Image, ImageOps
 
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            with Image.open(image_path) as img:
-                exif = img._getexif() or {}
-                orientation = exif.get(0x0112)
-
-            if orientation is None:
-                return None
-
-            # Rouvrir pour modification (Image.open en with bloque l'écriture)
             img = Image.open(image_path)
-            if orientation == 3:
-                img = img.rotate(180, expand=True)
-            elif orientation == 6:
-                img = img.rotate(270, expand=True)
-            elif orientation == 8:
-                img = img.rotate(90, expand=True)
-            else:
-                img.close()
-                return None
-
-            import hashlib
-            src_name = Path(image_path).name
-            src_path = str(Path(image_path).resolve())
-            path_hash = hashlib.sha256(src_path.encode()).hexdigest()[:12]
-            rotated_name = f"rotated_{path_hash}_{src_name}"
-            out_path = str(output_dir / rotated_name)
-            img.save(out_path)
-            img.close()
-            return out_path
-        except (OSError, IOError, AttributeError, KeyError):
-            return None
-
+            corrected = ImageOps.exif_transpose(img)
+            # Vérifier si une rotation a vraiment eu lieu (changement de dimensions)
+            if corrected.size != img.size:
+                out_path = output_dir / f"rot_{Path(image_path).name}"
+                corrected.save(str(out_path), quality=95)
+                return str(out_path)
+        except Exception:
+            pass
+        return None
 
 class PhotoDispatcher:
     """Répartit les photos notées en spreads héroïque / duo / grille.
