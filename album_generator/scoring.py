@@ -278,7 +278,7 @@ class PhotoScorer:
             return 0.5
 
     # ── Pénalité bruit dans les zones d'ombre (grain ISO élevé) ──
-    _SHADOW_NOISE_THRESHOLD = 60.0
+    _SHADOW_NOISE_THRESHOLD = 50.0
 
     @staticmethod
     def _shadow_noise_penalty(img: np.ndarray) -> float:
@@ -336,7 +336,7 @@ class PhotoScorer:
             mean_shadow_var = float(np.mean(shadow_vars))
 
             if mean_shadow_var > PhotoScorer._SHADOW_NOISE_THRESHOLD:
-                return 0.7  # pénalité grain
+                return 0.65  # pénalité grain
 
             return 1.0
         except Exception:
@@ -490,6 +490,13 @@ class PhotoScorer:
         else:
             thirds = self._rule_of_thirds(img_small, faces)
         neg_space = self._negative_space(gray_small)
+
+        # ── Pénalité si trop de vide uniforme (>60% = mur/ciel/fond vide) ──
+        empty_ratio = self._empty_area_ratio(gray_small)
+        if empty_ratio > 0.60:
+            # Trop de vide → la photo n'est pas assez intéressante pour hero
+            neg_space *= 0.20
+
         saturation = self._saturation(img_small)
         return (thirds * 0.40) + (neg_space * 0.30) + (saturation * 0.30)
 
@@ -543,17 +550,16 @@ class PhotoScorer:
         return float(np.mean(scores)) if scores else 0.5
 
     @staticmethod
-    def _negative_space(gray: np.ndarray, block_size: int = 32) -> float:
+    def _empty_area_ratio(gray: np.ndarray, block_size: int = 32) -> float:
+        """Retourne le ratio de blocs uniformes (ciel, mur, fond vide)."""
         h, w = gray.shape[:2]
         if h < block_size or w < block_size:
-            return 0.5
-
+            return 0.0
         n_blocks_h = h // block_size
         n_blocks_w = w // block_size
         total_blocks = n_blocks_h * n_blocks_w
         if total_blocks == 0:
-            return 0.5
-
+            return 0.0
         low_var_count = 0
         for i in range(n_blocks_h):
             for j in range(n_blocks_w):
@@ -563,8 +569,12 @@ class PhotoScorer:
                 ]
                 if np.var(block.astype(np.float64)) < 100:
                     low_var_count += 1
+        return low_var_count / total_blocks
 
-        ratio = low_var_count / total_blocks
+    @staticmethod
+    def _negative_space(gray: np.ndarray, block_size: int = 32) -> float:
+        """Note l'espace négatif : pic à 40% de blocs uniformes."""
+        ratio = PhotoScorer._empty_area_ratio(gray, block_size)
         if ratio < 0.4:
             return ratio / 0.4
         else:
@@ -643,7 +653,7 @@ class PhotoScorer:
     def smart_crop(
         image_path: str | Path,
         output_path: str | Path,
-        padding: float = 1.0,
+        padding: float = 1.5,
         aspect_ratio: Optional[float] = None,
     ) -> bool:
         img = cv2.imread(str(image_path))

@@ -31,6 +31,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+import cv2
+import numpy as np
+
 # Ajouter le projet au path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -313,11 +316,39 @@ def _layout_rectpack_collage(
     return photos
 
 
+# ── Détection photos avec trop de vide (hero blacklist) ──────────────
+
+def _has_excessive_empty_space(image_path: str, threshold: float = 0.50) -> bool:
+    """Vérifie si une photo a trop de surface uniforme (>50% = mur/ciel/fond vide).
+
+    Les photos blacklistées ne peuvent pas être hero (pleine page) car
+    l'espace vide gâche la mise en page. Elles restent utilisables pour
+    les templates quatuor/grille/P1-P7 où leur défaut est moins visible.
+
+    Utilise le même algorithme que PhotoScorer._empty_area_ratio pour
+    rester cohérent avec le scoring.
+    """
+    try:
+        img = cv2.imread(str(image_path))
+        if img is None:
+            return False
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        h, w = gray.shape
+        # Redimensionner pour la performance (identique à _NOISE_MAX_DIM)
+        if max(h, w) > 512:
+            scale = 512.0 / max(h, w)
+            gray = cv2.resize(gray, (int(w * scale), int(h * scale)),
+                              interpolation=cv2.INTER_AREA)
+        return PhotoScorer._empty_area_ratio(gray) > threshold
+    except Exception:
+        return False
+
+
 # ── Nouveau dispatch v3 — Fenêtre glissante ─────────────────────────
 
 def arrange_pages_from_scores_v3(
     photo_scores: List[Tuple[str, float, Dict[str, float]]],
-    window_size: int = 40,
+    window_size: int = 55,
     collage_min: int = 6,
     collage_max: int = 9,
     forced_template_id: Optional[str] = None,
@@ -368,7 +399,14 @@ def arrange_pages_from_scores_v3(
         else:
             month_label = f"Fenêtre {window_idx + 1}"
 
-        # ── Héroïque : top 1 ──
+        # ── Héroïque : top 1 (blacklist si >50% vide uniforme) ──
+        hero_idx = 0
+        for i in range(len(window_sorted)):
+            if not _has_excessive_empty_space(window_sorted[i][0]):
+                hero_idx = i
+                break
+        if hero_idx > 0:
+            window_sorted[0], window_sorted[hero_idx] = window_sorted[hero_idx], window_sorted[0]
         path, score, details = window_sorted[0]
         pages.append({
             "style": "heroique",

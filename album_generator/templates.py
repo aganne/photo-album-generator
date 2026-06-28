@@ -401,13 +401,15 @@ class TemplateSelector:
 
     # Templates utilisables pour la sélection automatique (T9 exclu car
     # réservé aux vidéos — sera sélectionné explicitement par le pipeline)
-    _AUTO_TEMPLATES = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
+    _AUTO_TEMPLATES = ["P1", "P2", "P3", "P4", "P6", "P7"]
 
     def __init__(
         self,
         templates: Optional[List[Template]] = None,
     ) -> None:
         self._templates = templates or get_all_templates()
+        # Filtrer pour ne garder que les templates activés dans _AUTO_TEMPLATES
+        self._templates = [t for t in self._templates if t.id in self._AUTO_TEMPLATES or t.id == "T9"]
         self._last_used: Optional[str] = None
 
     @property
