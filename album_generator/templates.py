@@ -401,7 +401,7 @@ class TemplateSelector:
 
     # Templates utilisables pour la sélection automatique (T9 exclu car
     # réservé aux vidéos — sera sélectionné explicitement par le pipeline)
-    _AUTO_TEMPLATES = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
+    _AUTO_TEMPLATES = ["P1", "P2", "P3", "P4", "P6", "P7"]
 
     def __init__(
         self,
