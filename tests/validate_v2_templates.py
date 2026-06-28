@@ -34,7 +34,7 @@ pages = dispatch_album(fake_scores, templates, window_size=20)
 
 # Vérifier que chaque photo est utilisée exactement une fois
 used = set()
-for tid, paths, hero in pages:
+for tid, paths, _hero in pages:
     t = templates[tid]
     expected = sum(1 for z in t['zones'] if z['type'] == 'photo')
     assert len(paths) <= expected, f"{tid}: too many photos ({len(paths)} > {expected})"
