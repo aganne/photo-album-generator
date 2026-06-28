@@ -17,6 +17,9 @@ import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import cv2
+import numpy as np
+
 _TEMPLATES_FILE = Path(__file__).parent / "templates_N.json"
 
 
@@ -47,6 +50,43 @@ def _derive_ids(tpl_by_id: Dict[str, Dict]) -> Tuple[List[str], Dict[str, int], 
     if not regular_ids:
         regular_ids = ["N1", "N2", "N9", "N10", "N11", "N12"]  # fallback
     return hero_ids, max_per_window, regular_ids
+
+
+def _is_hero_eligible(image_path: str, empty_threshold: float = 0.50) -> bool:
+    """Vérifie si une photo est éligible comme hero.
+
+    Blacklist :
+    - >50% de surface uniforme (mur, ciel, fond vide)
+    - Photo trop granuleuse dans les zones d'ombre
+    """
+    try:
+        img = cv2.imread(image_path)
+        if img is None:
+            return True  # si on ne peut pas lire, on laisse passer
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        h, w = gray.shape
+        if max(h, w) > 512:
+            scale = 512.0 / max(h, w)
+            gray = cv2.resize(gray, (int(w * scale), int(h * scale)),
+                              interpolation=cv2.INTER_AREA)
+        h, w = gray.shape
+        block_size = 32
+        n_blocks_h = h // block_size
+        n_blocks_w = w // block_size
+        if n_blocks_h < 2 or n_blocks_w < 2:
+            return True
+        gray = gray[:n_blocks_h * block_size, :n_blocks_w * block_size]
+        low_var_count = 0
+        total_blocks = n_blocks_h * n_blocks_w
+        for i in range(n_blocks_h):
+            for j in range(n_blocks_w):
+                block = gray[i*block_size:(i+1)*block_size, j*block_size:(j+1)*block_size]
+                if np.var(block.astype(np.float64)) < 100:
+                    low_var_count += 1
+        empty_ratio = low_var_count / total_blocks
+        return empty_ratio <= empty_threshold
+    except Exception:
+        return True
 
 
 def dispatch_album(
@@ -94,10 +134,19 @@ def dispatch_album(
         hn = sum(1 for z in ht["zones"] if z["type"] == "photo")
 
         if len(window_sorted) >= hn:
-            hpaths = [ws[0] for ws in window_sorted[:hn]]
-            pages.append((hid, hpaths, True))
+            # Trouver les hn meilleures photos éligibles (pas trop de vide/grain)
+            hero_candidates = []
+            for ws in window_sorted:
+                if _is_hero_eligible(ws[0]):
+                    hero_candidates.append(ws[0])
+                    if len(hero_candidates) >= hn:
+                        break
+            if len(hero_candidates) < hn:
+                # Pas assez d'éligibles → prendre les meilleures dispo
+                hero_candidates = [ws[0] for ws in window_sorted[:hn]]
+            pages.append((hid, hero_candidates, True))
             hero_toggle += 1
-            used = set(hpaths)
+            used = set(hero_candidates)
             remaining = [p[0] for p in window if p[0] not in used]
         else:
             remaining = [p[0] for p in window]

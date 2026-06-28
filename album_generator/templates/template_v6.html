@@ -1,0 +1,20 @@
+{# Template V6 N1-N12 — CSS Grid avec <img>, fond blanc, contain #}
+{% set tmpl_id = page.template_id or "N1" %}
+{% set tmpl_name = page.template_name or "" %}
+
+<div class="page page-template-v6">
+  <div class="template-v6-label">{{ tmpl_id }} · {{ tmpl_name }}</div>
+  <div class="template-v6-grid" style="grid-template-columns: repeat({{ page.grid_cols }}, 1fr); grid-template-rows: repeat({{ page.grid_rows }}, 1fr);">
+    {% for zone in page.zones %}
+      <div class="zone-v6 zone-{{ zone.type }}"
+           style="grid-column: {{ zone.col + 1 }} / span {{ zone.width }};
+                  grid-row: {{ zone.row + 1 }} / span {{ zone.height }};">
+        {% if zone.type == "photo" and zone.photo_path %}
+          <img src="file://{{ zone.photo_path }}" alt="" class="zone-v6-img">
+        {% elif zone.type == "text" and zone.rendered_text %}
+          <p class="zone-v6-text">{{ zone.rendered_text }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
