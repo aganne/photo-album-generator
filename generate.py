@@ -52,10 +52,7 @@ from album_generator.scoring import (
 from album_generator.colors import extract_palette, generate_dynamic_css, apply_palette_to_html
 from album_generator.enhance import batch_enhance
 from album_generator.print_risk import compute_print_penalty_file
-from album_generator.templates import (
-    TemplateSelector, PhotoDispatcher, TextGenerator,
-    get_all_templates, template_assignments_to_pages,
-)
+from album_generator.templates import load_templates, dispatch_album
 
 
 # ── Chemins ─────────────────────────────────────────────────────────
@@ -353,24 +350,12 @@ def arrange_pages_from_scores_v3(
     collage_max: int = 9,
     forced_template_id: Optional[str] = None,
 ) -> List[Dict]:
-    """Dispatch fenêtre glissante avec templates structurés V2 (P1-P7 + T9).
+    """Dispatch V6 avec fenêtre glissante — utilise dispatch_album() et templates N1-N12.
 
     Les photos sont déjà triées chronologiquement (EXIF) par l'appelant.
-    Dans chaque fenêtre :
-      - Top 1 score  → Héroïque (pleine page)
-      - 2-4 scores   → Quatuor (3 photos + mois/année)
-      - Reste         → Templates structurés P1-P7 + T9 (remplace rectpack)
-
-    Args:
-        photo_scores: liste de (path, score, details) triée par EXIF
-        window_size: taille de la fenêtre glissante
-        collage_min: ignoré (conservé pour compatibilité API)
-        collage_max: ignoré (conservé pour compatibilité API)
-        forced_template_id: si spécifié, force ce template pour les pages
-
-    Returns:
-        Liste de dicts représentant chaque page.
     """
+    from copy import deepcopy
+
     pages: List[Dict] = []
 
     if window_size <= 0:
@@ -379,151 +364,46 @@ def arrange_pages_from_scores_v3(
     # 1. Page de garde
     pages.append({"style": "titre", "data": {"album": ALBUM}})
 
-    n = len(photo_scores)
-    window_idx = 0
+    # Charger les templates V6
+    tpl_by_id = load_templates()
 
-    for start in range(0, n, window_size):
-        window = photo_scores[start:start + window_size]
-        if not window:
-            break
+    # Dispatch via l'API V6
+    raw_pages = dispatch_album(photo_scores, tpl_by_id, window_size=window_size)
 
-        # Trier la fenêtre par score décroissant
-        window_sorted = sorted(window, key=lambda x: x[1], reverse=True)
+    for tmpl_id, photo_paths, is_hero in raw_pages:
+        tmpl = tpl_by_id.get(tmpl_id)
+        if tmpl is None:
+            continue
 
-        # ── Mois/Année du premier élément chronologique ──
-        first_path = window[0][0]
-        month_label = ""
-        dt = extract_exif_date(first_path)
-        if dt:
-            month_label = f"{_MONTH_NAMES[dt.month - 1]} {dt.year}"
-        else:
-            month_label = f"Fenêtre {window_idx + 1}"
+        # Construire les zones avec les chemins photo
+        zones = []
+        photo_idx = 0
+        for zone in tmpl["zones"]:
+            z = dict(zone)  # shallow copy
+            if z["type"] == "photo":
+                if photo_idx < len(photo_paths):
+                    z["photo_path"] = photo_paths[photo_idx]
+                    photo_idx += 1
+                else:
+                    z["photo_path"] = None
+            elif z["type"] == "text":
+                z["rendered_text"] = ""
+            zones.append(z)
 
-        # ── Héroïque : top 1 (blacklist si >50% vide uniforme) ──
-        hero_idx = 0
-        for i in range(len(window_sorted)):
-            if not _has_excessive_empty_space(window_sorted[i][0]):
-                hero_idx = i
-                break
-        if hero_idx > 0:
-            window_sorted[0], window_sorted[hero_idx] = window_sorted[hero_idx], window_sorted[0]
-        path, score, details = window_sorted[0]
+        grid = tmpl.get("grid", {"cols": 4, "rows": 5})
+
         pages.append({
-            "style": "heroique",
-            "data": {"photo": _make_photo_dict(path)},
+            "style": "template_v6",
+            "data": {
+                "template_id": tmpl_id,
+                "template_name": tmpl.get("name", ""),
+                "grid_cols": grid["cols"],
+                "grid_rows": grid["rows"],
+                "zones": zones,
+            },
         })
 
-        # ── Quatuor : positions 2-4 ──
-        if len(window_sorted) >= 4:
-            quatuor_photos = [
-                _make_photo_dict(window_sorted[i][0])
-                for i in range(1, 4)
-            ]
-            pages.append({
-                "style": "quatuor",
-                "data": {
-                    "photos": quatuor_photos,
-                    "month_label": month_label,
-                },
-            })
-        elif len(window_sorted) == 3:
-            # 3 photos total → 1 héro + 2 dans une grille
-            photos = [
-                _make_photo_dict(window_sorted[i][0])
-                for i in range(1, 3)
-            ]
-            pages.append({
-                "style": "grille",
-                "data": {"photos": photos, "title": month_label},
-            })
-        elif len(window_sorted) == 2:
-            # 2 photos → 1 héro + 1 dans une autre héroïque
-            path2, _, _ = window_sorted[1]
-            pages.append({
-                "style": "heroique",
-                "data": {"photo": _make_photo_dict(path2)},
-            })
-
-        # ── Templates structurés : reste (positions 5+) ──
-        rest_start = 4
-        rest = window_sorted[rest_start:]
-
-        selector = TemplateSelector()
-        text_gen = TextGenerator()
-        window_templates_used: List[str] = []
-
-        idx = 0
-        while idx < len(rest):
-            remaining = rest[idx:]
-
-            # Arrêter s'il ne reste aucune photo
-            if not remaining:
-                break
-
-            if forced_template_id:
-                template = selector.select_by_id(forced_template_id)
-            else:
-                template = selector.select(remaining, used_templates=window_templates_used)
-
-            if template is None:
-                # Fallback : aucune template ne matche → grille simple
-                photos = [
-                    _make_photo_dict(r[0]) for r in remaining
-                ]
-                if photos:
-                    pages.append({
-                        "style": "grille",
-                        "data": {"photos": photos, "title": ""},
-                    })
-                break
-
-            consume = template.photo_zones
-
-            # Adapter si pas assez de photos
-            if len(remaining) < consume:
-                smaller = []
-                if forced_template_id or template.id == "P6":
-                    # Forcé par l'utilisateur ou P6 tolérant → dispatch() gère les short batches
-                    consume = min(consume, len(remaining))
-                else:
-                    all_templates = get_all_templates()
-                    smaller = sorted(
-                        [t for t in all_templates
-                         if t.id != "T9" and t.photo_zones <= len(remaining)],
-                        key=lambda t: t.photo_zones,
-                        reverse=True,
-                    )
-                if smaller:
-                    template = smaller[0]
-                    consume = template.photo_zones
-                else:
-                    photos = [
-                        _make_photo_dict(r[0]) for r in remaining
-                    ]
-                    if photos:
-                        pages.append({
-                            "style": "grille",
-                            "data": {"photos": photos, "title": ""},
-                        })
-                    break
-
-            batch = remaining[:consume]
-
-            # Dispatch photos + texte
-            dispatcher = PhotoDispatcher(template)
-            assignments = dispatcher.dispatch(batch)
-            assignments = text_gen.generate_texts(assignments, batch)
-
-            # Convertir en page
-            page = template_assignments_to_pages(assignments, template)
-            pages.append(page)
-
-            window_templates_used.append(template.id)
-            idx += consume
-
-        window_idx += 1
-
-    # 2. Page de crédits
+    # Page de crédits
     pages.append({"style": "credits", "data": {"album": ALBUM}})
 
     return pages

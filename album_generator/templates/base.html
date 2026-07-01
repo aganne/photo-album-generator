@@ -35,6 +35,8 @@
     {% include "blank.html" %}
   {% elif page.style == "template_structured" %}
     {% include "template_structured.html" %}
+  {% elif page.style == "template_v6" %}
+    {% include "template_v6.html" %}
   {% endif %}
 {% endfor %}
 
