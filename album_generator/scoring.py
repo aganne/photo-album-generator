@@ -812,12 +812,31 @@ def extract_exif_date(image_path: str | Path) -> Optional[datetime]:
 
 
 def sort_by_exif_date(
-    photo_paths: List[Path], strict: bool = False
+    photo_paths: List[Path],
+    strict: bool = False,
+    tag_context: Optional[Dict[str, Dict]] = None,
 ) -> List[Path]:
+    """Trie les photos par date EXIF, avec support du tag ``redater``.
+
+    Si une photo a le tag ``redater`` dans ``tag_context``, sa date
+    effective est utilisée à la place de la date EXIF réelle.
+    Cela permet de replacer une photo dans le bon ordre chronologique
+    même si sa date EXIF est erronée.
+
+    Args:
+        photo_paths: Liste des chemins de photos.
+        strict: Si True, ignore les photos sans date.
+        tag_context: Dictionnaire optionnel {chemin_absolu: {tags...}}
+                     pour supporter le tag ``redater``.
+    """
     dated = []
     undated = []
     for p in photo_paths:
-        dt = extract_exif_date(p)
+        if tag_context:
+            from .tag_engine import get_effective_date
+            dt = get_effective_date(p, tag_context)
+        else:
+            dt = extract_exif_date(p)
         if dt:
             dated.append((dt, p))
         else:
