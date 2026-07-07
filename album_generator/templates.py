@@ -93,11 +93,15 @@ def dispatch_album(
     photo_scores: List[Tuple[str, float, Any]],
     tpl_by_id: Optional[Dict[str, Dict]] = None,
     window_size: int = 40,
+    tag_context: Optional[Dict[str, Dict]] = None,
 ) -> List[Tuple[str, List[str], bool]]:
     """Dispatch les photos dans les templates V6.
 
     Règles par fenêtre de window_size photos (triées chrono EXIF) :
     1. Hero : 1 page N3 ou N7 (alterne). Meilleures photos.
+       Les photos taggées ``hero`` (via tag_context) sont PRIORITAIRES
+       pour le slot hero de leur fenêtre. Si plusieurs hero taggés
+       dans la fenêtre, la meilleure score est sélectionnée.
        Skip si fenêtre trop petite pour le template.
     2. Templates avec max_per_window : max N pages.
     3. Reste : templates standards en ordre aléatoire, toutes les photos consommées.
@@ -106,6 +110,8 @@ def dispatch_album(
         photo_scores: liste de (path, score, details) triée EXIF
         tpl_by_id: dict des templates (chargé si None)
         window_size: taille de fenêtre glissante
+        tag_context: dict optionnel {chemin_absolu: {tags...}} pour
+                     prioriser les photos taggées ``hero``.
 
     Returns:
         Liste de (template_id, [photo_paths], is_hero) par page.
@@ -134,16 +140,50 @@ def dispatch_album(
         hn = sum(1 for z in ht["zones"] if z["type"] == "photo")
 
         if len(window_sorted) >= hn:
-            # Trouver les hn meilleures photos éligibles (pas trop de vide/grain)
-            hero_candidates = []
-            for ws in window_sorted:
-                if _is_hero_eligible(ws[0]):
-                    hero_candidates.append(ws[0])
-                    if len(hero_candidates) >= hn:
-                        break
-            if len(hero_candidates) < hn:
-                # Pas assez d'éligibles → prendre les meilleures dispo
-                hero_candidates = [ws[0] for ws in window_sorted[:hn]]
+            # Trouver les hn meilleures photos éligibles
+
+            # ── Priorité hero taggées ──
+            # Les photos taggées ``hero`` dans tag_context sont prioritaires
+            # pour le slot hero de leur fenêtre. Elles bypassent le check
+            # d'éligibilité (hero tag = l'utilisateur a décidé).
+            hero_tagged = []
+            if tag_context:
+                for ws in window_sorted:
+                    abs_path = str(Path(ws[0]).resolve())
+                    if tag_context.get(abs_path, {}).get("hero") is True:
+                        hero_tagged.append(ws[0])
+
+            if hero_tagged:
+                # Si plusieurs hero taggés, prendre la meilleure score
+                hero_candidates = hero_tagged[:hn]
+                if len(hero_candidates) < hn:
+                    # Compléter avec les meilleures éligibles restantes
+                    eligible = []
+                    for ws in window_sorted:
+                        if ws[0] not in hero_candidates and _is_hero_eligible(ws[0]):
+                            eligible.append(ws[0])
+                            if len(hero_candidates) + len(eligible) >= hn:
+                                break
+                    # Si pas assez d'éligibles, prendre les meilleures dispo
+                    remaining_needed = hn - len(hero_candidates)
+                    if len(eligible) >= remaining_needed:
+                        hero_candidates.extend(eligible[:remaining_needed])
+                    else:
+                        for ws in window_sorted:
+                            if ws[0] not in hero_candidates:
+                                hero_candidates.append(ws[0])
+                                if len(hero_candidates) >= hn:
+                                    break
+            else:
+                hero_candidates = []
+                for ws in window_sorted:
+                    if _is_hero_eligible(ws[0]):
+                        hero_candidates.append(ws[0])
+                        if len(hero_candidates) >= hn:
+                            break
+                if len(hero_candidates) < hn:
+                    # Pas assez d'éligibles → prendre les meilleures dispo
+                    hero_candidates = [ws[0] for ws in window_sorted[:hn]]
             pages.append((hid, hero_candidates, True))
             hero_toggle += 1
             used = set(hero_candidates)

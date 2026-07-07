@@ -53,6 +53,12 @@ from album_generator.colors import extract_palette, generate_dynamic_css, apply_
 from album_generator.enhance import batch_enhance
 from album_generator.print_risk import compute_print_penalty_file
 from album_generator.templates import load_templates, dispatch_album
+from album_generator.tag_engine import (
+    apply_tags,
+    get_score_boost,
+    get_legend,
+    count_tagged_photos,
+)
 
 
 # ── Chemins ─────────────────────────────────────────────────────────
@@ -349,10 +355,13 @@ def arrange_pages_from_scores_v3(
     collage_min: int = 6,
     collage_max: int = 9,
     forced_template_id: Optional[str] = None,
+    tag_context: Optional[Dict[str, Dict]] = None,
 ) -> List[Dict]:
     """Dispatch V6 avec fenêtre glissante — utilise dispatch_album() et templates N1-N12.
 
     Les photos sont déjà triées chronologiquement (EXIF) par l'appelant.
+    Si ``tag_context`` est fourni, les légendes (tag ``texte``) sont
+    injectées dans les zones text des templates.
     """
     from copy import deepcopy
 
@@ -368,26 +377,34 @@ def arrange_pages_from_scores_v3(
     tpl_by_id = load_templates()
 
     # Dispatch via l'API V6
-    raw_pages = dispatch_album(photo_scores, tpl_by_id, window_size=window_size)
+    raw_pages = dispatch_album(photo_scores, tpl_by_id, window_size=window_size, tag_context=tag_context)
 
     for tmpl_id, photo_paths, is_hero in raw_pages:
         tmpl = tpl_by_id.get(tmpl_id)
         if tmpl is None:
             continue
 
-        # Construire les zones avec les chemins photo
+        # Construire les zones avec les chemins photo et légendes
         zones = []
         photo_idx = 0
+        last_legend = ""
         for zone in tmpl["zones"]:
             z = dict(zone)  # shallow copy
             if z["type"] == "photo":
                 if photo_idx < len(photo_paths):
                     z["photo_path"] = photo_paths[photo_idx]
+                    # Injecter la légende si disponible
+                    if tag_context:
+                        legend = get_legend(photo_paths[photo_idx], tag_context)
+                        if legend:
+                            z["legend"] = legend
+                            last_legend = legend
                     photo_idx += 1
                 else:
                     z["photo_path"] = None
             elif z["type"] == "text":
-                z["rendered_text"] = ""
+                # Associer la légende de la dernière photo au texte
+                z["rendered_text"] = last_legend
             zones.append(z)
 
         grid = tmpl.get("grid", {"cols": 4, "rows": 5})
@@ -909,6 +926,15 @@ def main():
         create_mock_photos()
         photo_files = scan_photos()
 
+    # ── Appliquer les tags EXIF ──
+    tag_context: Dict[str, Dict] = {}
+    if args.photos:
+        photo_files, tag_context = apply_tags(photo_files, Path(args.photos))
+        tc_counts = count_tagged_photos(tag_context)
+        if tc_counts:
+            parts = [f"{v} {k}" for k, v in sorted(tc_counts.items())]
+            print(f"   🏷️  Tags actifs : {' — '.join(parts)}")
+
     # Déterminer si on active le scoring
     use_scoring = args.scoring
     if use_scoring is None:
@@ -932,8 +958,8 @@ def main():
         print("🧠 Scoring IA des photos en cours...")
         scorer = PhotoScorer()
 
-        # Trier par EXIF pour l'ordre chronologique
-        photo_files = sort_by_exif_date(photo_files)
+        # Trier par EXIF pour l'ordre chronologique (avec support redater)
+        photo_files = sort_by_exif_date(photo_files, tag_context=tag_context)
 
         # Scorer chaque photo en parallèle
         photo_scores = []
@@ -1030,7 +1056,26 @@ def main():
             photo_scores = enhanced_scores
             print(f"   📊 {len(photo_scores)} photos re-notées avec pénalité print_risk")
 
+        # ── Appliquer le boost favori (après enhance) ──
+        if tag_context:
+            boosted_count = 0
+            updated_scores = []
+            for path_str, score, details in photo_scores:
+                boost = get_score_boost(path_str, tag_context)
+                if boost > 1.0:
+                    boosted_count += 1
+                    boosted = min(score * boost, 1.0)
+                    details["score_boosted"] = True
+                    details["score_raw"] = round(score, 4)
+                    details["score_boost"] = round(boosted, 4)
+                    score = boosted
+                updated_scores.append((path_str, score, details))
+            photo_scores = updated_scores
+            if boosted_count:
+                print(f"   ⭐ Boost favori appliqué à {boosted_count} photos")
+
         # ── Smart crop + rotation EXIF ──
+        old_scores = list(photo_scores)  # snapshot avant changement de chemins
         if not args.no_smartcrop:
             crop_dir = OUTPUT_DIR / ".crop_cache"
             photo_scores = preprocess_scored_photos(photo_scores, crop_dir=crop_dir)
@@ -1038,11 +1083,24 @@ def main():
             # Appliquer seulement la rotation EXIF
             photo_scores = preprocess_scored_photos(photo_scores, crop_dir=None)
 
+        # Remapper tag_context : les chemins ont pu changer (crop/rotation)
+        if tag_context:
+            remapped: Dict[str, Dict] = {}
+            for old_ps, new_ps in zip(old_scores, photo_scores):
+                old_path = str(Path(old_ps[0]).resolve())
+                new_path = str(Path(new_ps[0]).resolve())
+                # Chercher dans l'ancien chemin
+                tags = tag_context.get(old_path) or tag_context.get(new_path)
+                if tags:
+                    remapped[new_path] = tags
+            tag_context = remapped
+
         # ── Nouveau dispatch v3 : fenêtre glissante + templates structurés ──
         pages = arrange_pages_from_scores_v3(
             photo_scores,
             window_size=args.window_size,
             forced_template_id=args.template,
+            tag_context=tag_context,
         )
         if args.template:
             print(f"   📐 Template forcé : {args.template}")

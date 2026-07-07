@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prévisualisation Album Photo</title>
+  <link rel="stylesheet" href="/preview.css">
+</head>
+<body>
+  <!-- Header -->
+  <header id="header">
+    <div class="header-left">
+      <h1>📸 Prévisualisation Album</h1>
+      <span class="photo-count" id="photoCount"></span>
+    </div>
+    <div class="header-right">
+      <button id="btnSidebar" class="btn-icon" title="Filtres et recherche">☰</button>
+      <button id="btnRegenerate" class="btn-primary">🔄 Régénérer l'album</button>
+      <span id="regenerateStatus" class="status-badge hidden"></span>
+    </div>
+  </header>
+
+  <!-- Layout -->
+  <div id="layout">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar-hidden">
+      <div class="sidebar-section">
+        <h3>🔍 Recherche</h3>
+        <input type="text" id="searchInput" placeholder="Nom du fichier..." class="search-input">
+      </div>
+
+      <div class="sidebar-section">
+        <h3>📌 Photos taggées</h3>
+        <div id="taggedList" class="tagged-list">
+          <p class="placeholder">Aucune photo taggée</p>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>🏷️ Filtres</h3>
+        <div class="filter-list" id="filterList">
+          <label class="filter-item">
+            <input type="checkbox" data-tag="hero" checked>
+            <span class="tag-badge tag-hero">⭐ Hero</span>
+          </label>
+          <label class="filter-item">
+            <input type="checkbox" data-tag="favori" checked>
+            <span class="tag-badge tag-favori">❤️ Favori</span>
+          </label>
+          <label class="filter-item">
+            <input type="checkbox" data-tag="supprimer" checked>
+            <span class="tag-badge tag-supprimer">🗑️ Supprimer</span>
+          </label>
+          <label class="filter-item">
+            <input type="checkbox" data-tag="redater" checked>
+            <span class="tag-badge tag-redater">📅 Redater</span>
+          </label>
+          <label class="filter-item">
+            <input type="checkbox" data-tag="texte" checked>
+            <span class="tag-badge tag-texte">📝 Texte</span>
+          </label>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main id="mainContent">
+      <div id="loadingIndicator" class="loading">Chargement de la prévisualisation...</div>
+      <div id="errorMessage" class="error hidden"></div>
+      <div id="pagesGrid" class="pages-grid"></div>
+    </main>
+  </div>
+
+  <!-- Context Menu -->
+  <div id="contextMenu" class="context-menu hidden">
+    <div class="context-menu-header">
+      <span id="contextPhotoName" class="context-photo-name"></span>
+    </div>
+    <div class="context-menu-items" id="contextMenuItems">
+      <div class="context-item" data-tag="hero" data-type="bool">
+        <span class="context-icon">⭐</span>
+        <span class="context-label">Forcer Héro</span>
+        <span class="context-checkmark hidden">✓</span>
+      </div>
+      <div class="context-item" data-tag="favori" data-type="bool">
+        <span class="context-icon">❤️</span>
+        <span class="context-label">Favori</span>
+        <span class="context-checkmark hidden">✓</span>
+      </div>
+      <div class="context-item" data-tag="supprimer" data-type="bool">
+        <span class="context-icon">🗑️</span>
+        <span class="context-label">Supprimer</span>
+        <span class="context-checkmark hidden">✓</span>
+      </div>
+      <div class="context-item" data-tag="redater" data-type="str">
+        <span class="context-icon">📅</span>
+        <span class="context-label">Redater...</span>
+        <span class="context-checkmark hidden">✓</span>
+      </div>
+      <div class="context-item" data-tag="texte" data-type="str">
+        <span class="context-icon">📝</span>
+        <span class="context-label">Légende...</span>
+        <span class="context-checkmark hidden">✓</span>
+      </div>
+      <div class="context-divider"></div>
+      <div class="context-item context-item-clear hidden" id="contextClearAll">
+        <span style="color: #e74c3c;">✕ Retirer tous les tags</span>
+      </div>
+      <div class="context-divider"></div>
+      <div class="context-item context-item-cancel" id="contextCancel">
+        <span>Annuler</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Date dialog -->
+  <div id="dateDialog" class="dialog-overlay hidden">
+    <div class="dialog-box">
+      <h3>📅 Changer la date</h3>
+      <input type="date" id="dateInput" class="dialog-input">
+      <div class="dialog-buttons">
+        <button id="dateConfirm" class="btn-primary">OK</button>
+        <button id="dateCancel" class="btn-secondary">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Text dialog -->
+  <div id="textDialog" class="dialog-overlay hidden">
+    <div class="dialog-box">
+      <h3>📝 Ajouter une légende</h3>
+      <textarea id="textInput" class="dialog-textarea" placeholder="Votre légende..." rows="3"></textarea>
+      <div class="dialog-buttons">
+        <button id="textConfirm" class="btn-primary">OK</button>
+        <button id="textCancel" class="btn-secondary">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/preview.js"></script>
+</body>
+</html>
