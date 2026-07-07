@@ -17,6 +17,7 @@ Les autres contenus du UserComment (non-album_tags) sont préservés.
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,21 @@ ALL_SUPPORTED_TAGS = BOOLEAN_TAGS | STRING_TAGS
 IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".JPG", ".JPEG"})
 """Extensions de fichiers prises en charge pour la lecture/écriture de tags."""
 
+# Per-file locks to prevent concurrent write races from Flask threads
+_locks: dict[Path, threading.RLock] = {}
+_locks_guard = threading.Lock()
+
+
+def _get_file_lock(photo_path: Path) -> threading.RLock:
+    """Return (or create) a threading.RLock for the given file path."""
+    resolved = photo_path.resolve()
+    with _locks_guard:
+        lock = _locks.get(resolved)
+        if lock is None:
+            lock = threading.RLock()
+            _locks[resolved] = lock
+        return lock
+
 # ── Encodage / Décodage UserComment ──────────────────────────────────
 
 _ENCODING_PREFIXES = {
@@ -60,19 +76,18 @@ def _decode_user_comment(data: bytes) -> str:
     if not data:
         return ""
 
+    detected_encoding = "utf-8"  # default when no prefix recognised
     rest = data
     for prefix, encoding in _ENCODING_PREFIXES.items():
-        if data[:8] == prefix:
-            rest = data[8:]
+        if len(data) >= len(prefix) and data[:len(prefix)] == prefix:
+            rest = data[len(prefix):]
+            detected_encoding = encoding
             break
-    else:
-        # Pas de préfixe reconnu — on suppose UTF-8
-        pass
 
-    # Tentative principale
+    # Decode with the detected encoding
     try:
-        return rest.decode("utf-8")
-    except UnicodeDecodeError:
+        return rest.decode(detected_encoding)
+    except (UnicodeDecodeError, LookupError):
         pass
 
     # Fallback : ascii en remplaçant les caractères hors répertoire
@@ -226,20 +241,21 @@ def write_tags(photo_path: Path, tags: dict[str, str | bool]) -> None:
         photo_path: Chemin vers le fichier photo.
         tags: Dictionnaire des tags à écrire (ex: ``{"hero": True, "texte": "Mon texte"}``).
     """
-    comment = _read_raw_comment(photo_path)
+    with _get_file_lock(photo_path):
+        comment = _read_raw_comment(photo_path)
 
-    # Filtrer les anciennes lignes album_tags
-    lines = comment.split("\n")
-    kept_lines = [l for l in lines if not l.strip().startswith(ALBUM_TAGS_PREFIX)]
+        # Filtrer les anciennes lignes album_tags
+        lines = comment.split("\n")
+        kept_lines = [line for line in lines if not line.strip().startswith(ALBUM_TAGS_PREFIX)]
 
-    # Ajouter la nouvelle ligne si on a des tags
-    tags_line = _format_tags_to_line(tags)
-    if tags_line:
-        kept_lines.append(tags_line)
+        # Ajouter la nouvelle ligne si on a des tags
+        tags_line = _format_tags_to_line(tags)
+        if tags_line:
+            kept_lines.append(tags_line)
 
-    # Reconstruire le commentaire complet
-    new_comment = "\n".join(kept_lines).strip()
-    _write_raw_comment(photo_path, new_comment)
+        # Reconstruire le commentaire complet
+        new_comment = "\n".join(kept_lines).strip()
+        _write_raw_comment(photo_path, new_comment)
 
 
 def add_tag(photo_path: Path, key: str, value: str | bool = True) -> None:
@@ -250,9 +266,10 @@ def add_tag(photo_path: Path, key: str, value: str | bool = True) -> None:
         key: Clé du tag (``hero``, ``favori``, ``supprimer``, ``redater``, ``texte``).
         value: Valeur. ``True`` par défaut pour les tags booléens.
     """
-    tags = read_tags(photo_path)
-    tags[key] = value
-    write_tags(photo_path, tags)
+    with _get_file_lock(photo_path):
+        tags = read_tags(photo_path)
+        tags[key] = value
+        write_tags(photo_path, tags)
 
 
 def remove_tag(photo_path: Path, key: str) -> None:
@@ -264,11 +281,12 @@ def remove_tag(photo_path: Path, key: str) -> None:
         photo_path: Chemin vers le fichier photo.
         key: Clé du tag à supprimer.
     """
-    tags = read_tags(photo_path)
-    if key not in tags:
-        return
-    del tags[key]
-    write_tags(photo_path, tags)
+    with _get_file_lock(photo_path):
+        tags = read_tags(photo_path)
+        if key not in tags:
+            return
+        del tags[key]
+        write_tags(photo_path, tags)
 
 
 def clear_all_tags(photo_path: Path) -> None:
@@ -281,7 +299,7 @@ def clear_all_tags(photo_path: Path) -> None:
     """
     comment = _read_raw_comment(photo_path)
     lines = comment.split("\n")
-    kept_lines = [l for l in lines if not l.strip().startswith(ALBUM_TAGS_PREFIX)]
+    kept_lines = [line for line in lines if not line.strip().startswith(ALBUM_TAGS_PREFIX)]
     new_comment = "\n".join(kept_lines).strip()
     if new_comment == comment and comment:
         # Rien à changer

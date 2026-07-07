@@ -32,7 +32,7 @@ if [ ! -d "$PHOTOS_DIR" ]; then
 fi
 
 # Vérifier qu'il y a des JPG
-jpg_count=$(find "$PHOTOS_DIR" -maxdepth 1 -iname '*.jpg' | wc -l)
+jpg_count=$(find "$PHOTOS_DIR" -maxdepth 1 \( -iname '*.jpg' -o -iname '*.jpeg' \) | wc -l)
 if [ "$jpg_count" -eq 0 ]; then
     echo "⚠️  Aucun fichier JPG trouvé dans $PHOTOS_DIR"
     echo "   Le serveur démarrera mais n'affichera rien."

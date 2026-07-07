@@ -191,6 +191,32 @@ function renderPages() {
     const card = document.createElement('div');
     card.className = 'page-card';
 
+    // Filter photos by search query and checkbox filters
+    const filteredPhotos = page.photos.filter(photo => {
+      // Search filter
+      if (state.searchQuery) {
+        const filename = (photo.filename || '').toLowerCase();
+        if (!filename.includes(state.searchQuery)) return false;
+      }
+      // Tag checkbox filters: show photo if it has ANY of the checked tags
+      // (or no tags at all — we always show untagged photos)
+      const photoInfo = state.photos.find(p => p.filename === photo.filename) || {};
+      const tags = photoInfo.tags || {};
+      const activeFilters = Object.entries(state.filters)
+        .filter(([, checked]) => checked)
+        .map(([tag]) => tag);
+      if (activeFilters.length > 0) {
+        // If all filters are unchecked, show nothing tagged; otherwise show if any match
+        const hasAnyFilterMatch = activeFilters.some(tag => tags[tag]);
+        // Also show untagged photos
+        const hasTags = Object.values(tags).some(v => v);
+        if (hasTags && !hasAnyFilterMatch) return false;
+      }
+      return true;
+    });
+
+    if (filteredPhotos.length === 0) return; // Skip empty pages after filtering
+
     // Header
     const header = document.createElement('div');
     header.className = 'page-header';
@@ -208,10 +234,10 @@ function renderPages() {
     const templateId = page.template_id;
     // Grille: on détermine le layout en fonction du template
     // Pour la preview, on utilise un layout simple 4×5 ou en fonction du nombre de photos
-    const numPhotos = page.photos.length;
+    const numPhotos = filteredPhotos.length;
     photosDiv.style.gridTemplateColumns = getGridCols(numPhotos, templateId);
 
-    page.photos.forEach(photo => {
+    filteredPhotos.forEach(photo => {
       const photoInfo = state.photos.find(p => p.filename === photo.filename) || {};
       const tags = photoInfo.tags || {};
       const hasSupprimer = tags.supprimer === true;
@@ -254,6 +280,15 @@ function renderPages() {
       nameDiv.className = 'photo-name-overlay';
       nameDiv.textContent = photo.filename;
       wrapper.appendChild(nameDiv);
+
+      // Left-click alternative: click thumbnail to open tag context menu
+      wrapper.addEventListener('click', (e) => {
+        // Don't trigger if the user is clicking on a dialog or other interactive element
+        if (e.target.closest('.context-menu') || e.target.closest('.dialog-overlay')) return;
+        e.preventDefault();
+        const rect = wrapper.getBoundingClientRect();
+        showContextMenu(rect.left + 10, rect.top + 10, photo.filename);
+      });
 
       photosDiv.appendChild(wrapper);
     });
@@ -311,12 +346,21 @@ function renderTaggedList() {
     div.className = 'tagged-entry';
 
     const activeTags = getActiveTags(tags);
-    const badges = activeTags.map(t => `<span class="tag-badge tag-${t}">${getTagEmoji(t)} ${t}</span>`).join(' ');
 
-    div.innerHTML = `
-      <span class="filename">${filename}</span>
-      ${badges}
-    `;
+    const filenameSpan = document.createElement('span');
+    filenameSpan.className = 'filename';
+    filenameSpan.textContent = filename;
+    div.appendChild(filenameSpan);
+    div.appendChild(document.createTextNode(' '));
+
+    // Append badge spans safely via DOM (no innerHTML)
+    activeTags.forEach(t => {
+      const badgeSpan = document.createElement('span');
+      badgeSpan.className = `tag-badge tag-${t}`;
+      badgeSpan.textContent = `${getTagEmoji(t)} ${t}`;
+      div.appendChild(badgeSpan);
+      div.appendChild(document.createTextNode(' '));
+    });
     div.addEventListener('click', () => scrollToPhoto(filename));
     container.appendChild(div);
   });

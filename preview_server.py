@@ -70,6 +70,21 @@ _regenerate_lock = threading.Lock()
 
 # ── Utilitaires ───────────────────────────────────────────────────────
 
+def _safe_photo_path(filename: str) -> Path:
+    """Resolve a photo path and validate it is under PHOTOS_DIR.
+
+    Prevents path traversal attacks (e.g. ``../../etc/passwd``).
+    """
+    candidate = (PHOTOS_DIR / filename).resolve()
+    # resolve() normalises and removes ../ components, but we still
+    # need to confirm the final path is inside the photos directory.
+    try:
+        candidate.relative_to(PHOTOS_DIR.resolve())
+    except ValueError:
+        raise ValueError("Photo path escapes PHOTOS_DIR")
+    return candidate
+
+
 def load_scores() -> Dict[str, Dict]:
     """Charge et met en cache le scoring_report.json."""
     global _scores_cache
@@ -158,9 +173,9 @@ def _serialize_tags(tags: Dict[str, Any]) -> Dict[str, Any]:
     for k, v in tags.items():
         if isinstance(v, bool):
             result[k] = v
-        elif v == "True":
+        elif isinstance(v, str) and v.lower() == "true":
             result[k] = True
-        elif v == "false":
+        elif isinstance(v, str) and v.lower() == "false":
             result[k] = False
         else:
             result[k] = v
@@ -319,7 +334,10 @@ def api_preview():
 @app.route("/api/photo/<path:filename>/info")
 def api_photo_info(filename: str):
     """Retourne les infos détaillées d'une photo."""
-    photo_path = PHOTOS_DIR / filename
+    try:
+        photo_path = _safe_photo_path(filename)
+    except ValueError:
+        return jsonify({"error": "Chemin de photo invalide"}), 400
     if not photo_path.exists():
         return jsonify({"error": f"Photo introuvable: {filename}"}), 404
     info = get_photo_info(photo_path)
@@ -329,7 +347,10 @@ def api_photo_info(filename: str):
 @app.route("/api/photo/<path:filename>/thumbnail")
 def api_photo_thumbnail(filename: str):
     """Retourne une vignette JPEG de la photo (200px de large)."""
-    photo_path = PHOTOS_DIR / filename
+    try:
+        photo_path = _safe_photo_path(filename)
+    except ValueError:
+        return jsonify({"error": "Chemin de photo invalide"}), 400
     if not photo_path.exists():
         return jsonify({"error": f"Photo introuvable: {filename}"}), 404
 
@@ -350,7 +371,10 @@ def api_photo_thumbnail(filename: str):
 @app.route("/api/photo/<path:filename>/tag", methods=["POST"])
 def api_photo_add_tag(filename: str):
     """Ajoute ou modifie un tag sur une photo (écriture EXIF immédiate)."""
-    photo_path = PHOTOS_DIR / filename
+    try:
+        photo_path = _safe_photo_path(filename)
+    except ValueError:
+        return jsonify({"error": "Chemin de photo invalide"}), 400
     if not photo_path.exists():
         return jsonify({"error": f"Photo introuvable: {filename}"}), 404
 
@@ -381,7 +405,10 @@ def api_photo_add_tag(filename: str):
 @app.route("/api/photo/<path:filename>/tag/<tag_name>", methods=["DELETE"])
 def api_photo_remove_tag(filename: str, tag_name: str):
     """Supprime un tag d'une photo."""
-    photo_path = PHOTOS_DIR / filename
+    try:
+        photo_path = _safe_photo_path(filename)
+    except ValueError:
+        return jsonify({"error": "Chemin de photo invalide"}), 400
     if not photo_path.exists():
         return jsonify({"error": f"Photo introuvable: {filename}"}), 404
 
@@ -398,7 +425,10 @@ def api_photo_remove_tag(filename: str, tag_name: str):
 @app.route("/api/photo/<path:filename>/tags", methods=["DELETE"])
 def api_photo_clear_tags(filename: str):
     """Supprime tous les tags d'une photo."""
-    photo_path = PHOTOS_DIR / filename
+    try:
+        photo_path = _safe_photo_path(filename)
+    except ValueError:
+        return jsonify({"error": "Chemin de photo invalide"}), 400
     if not photo_path.exists():
         return jsonify({"error": f"Photo introuvable: {filename}"}), 404
 

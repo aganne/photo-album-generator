@@ -987,24 +987,6 @@ def main():
         exif_order = {str(fp): idx for idx, fp in enumerate(photo_files)}
         photo_scores.sort(key=lambda ps: exif_order.get(ps[0], 9999))
 
-        # ── Appliquer le boost favori ──
-        if tag_context:
-            boosted_count = 0
-            updated_scores = []
-            for path_str, score, details in photo_scores:
-                boost = get_score_boost(path_str, tag_context)
-                if boost > 1.0:
-                    boosted_count += 1
-                    boosted = min(score * boost, 1.0)
-                    details["score_boosted"] = True
-                    details["score_raw"] = round(score, 4)
-                    details["score_boost"] = round(boosted, 4)
-                    score = boosted
-                updated_scores.append((path_str, score, details))
-            photo_scores = updated_scores
-            if boosted_count:
-                print(f"   ⭐ Boost favori appliqué à {boosted_count} photos")
-
         print(f"   ✓ {len(photo_scores)}/{len(photo_files)} photos notées")
 
         # ── Retouche photo --enhance ──
@@ -1073,6 +1055,24 @@ def main():
             # Remplacer les scores
             photo_scores = enhanced_scores
             print(f"   📊 {len(photo_scores)} photos re-notées avec pénalité print_risk")
+
+        # ── Appliquer le boost favori (après enhance) ──
+        if tag_context:
+            boosted_count = 0
+            updated_scores = []
+            for path_str, score, details in photo_scores:
+                boost = get_score_boost(path_str, tag_context)
+                if boost > 1.0:
+                    boosted_count += 1
+                    boosted = min(score * boost, 1.0)
+                    details["score_boosted"] = True
+                    details["score_raw"] = round(score, 4)
+                    details["score_boost"] = round(boosted, 4)
+                    score = boosted
+                updated_scores.append((path_str, score, details))
+            photo_scores = updated_scores
+            if boosted_count:
+                print(f"   ⭐ Boost favori appliqué à {boosted_count} photos")
 
         # ── Smart crop + rotation EXIF ──
         old_scores = list(photo_scores)  # snapshot avant changement de chemins
