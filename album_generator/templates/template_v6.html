@@ -7,8 +7,8 @@
   <div class="template-v6-grid" style="grid-template-columns: repeat({{ page.grid_cols }}, 1fr); grid-template-rows: repeat({{ page.grid_rows }}, 1fr);">
     {% for zone in page.zones %}
       <div class="zone-v6 zone-{{ zone.type }}"
-           style="grid-column: {{ zone.col + 1 }} / span {{ zone.width }};
-                  grid-row: {{ zone.row + 1 }} / span {{ zone.height }};">
+           style="grid-column: {{ zone.col + 1 }} / span {{ zone.w }};
+                  grid-row: {{ zone.row + 1 }} / span {{ zone.h }};">
         {% if zone.type == "photo" and zone.photo_path %}
           <img src="file://{{ zone.photo_path }}" alt="" class="zone-v6-img">
         {% elif zone.type == "text" and zone.rendered_text %}
