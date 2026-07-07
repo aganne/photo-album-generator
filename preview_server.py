@@ -392,7 +392,15 @@ def api_photo_add_tag(filename: str):
 
     try:
         if tag in ("redater", "texte"):
-            add_tag(photo_path, tag, str(value))
+            if not isinstance(value, str) or not value.strip():
+                return jsonify({"error": f"Le tag '{tag}' requiert une valeur texte"}), 400
+            if tag == "redater":
+                from datetime import datetime
+                try:
+                    datetime.strptime(value.strip(), "%Y-%m-%d")
+                except ValueError:
+                    return jsonify({"error": "Format redater invalide (attendu: YYYY-MM-DD)"}), 400
+            add_tag(photo_path, tag, value.strip())
         else:
             add_tag(photo_path, tag, bool(value))
         tags = read_tags(photo_path)
