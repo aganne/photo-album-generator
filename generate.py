@@ -845,6 +845,11 @@ def generate_html(pages, css_override=None):
     env.globals["album"] = ALBUM
     env.globals["album_css"] = css_override if css_override else load_styles()
 
+    # Filtre URL-safe : remplace les espaces dans les chemins de fichiers
+    def url_safe(path):
+        return path.replace(' ', '%20')
+    env.filters['url_safe'] = url_safe
+
     template = env.get_template("base.html")
 
     page_list = []

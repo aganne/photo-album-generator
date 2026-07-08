@@ -10,7 +10,7 @@
            style="grid-column: {{ zone.col + 1 }} / span {{ zone.w }};
                   grid-row: {{ zone.row + 1 }} / span {{ zone.h }};">
         {% if zone.type == "photo" and zone.photo_path %}
-          <img src="file://{{ zone.photo_path }}" alt="" class="zone-v6-img">
+          <img src="file://{{ zone.photo_path | url_safe }}" alt="" class="zone-v6-img">
         {% elif zone.type == "text" and zone.rendered_text %}
           <p class="zone-v6-text">{{ zone.rendered_text }}</p>
         {% endif %}
