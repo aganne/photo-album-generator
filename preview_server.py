@@ -386,7 +386,7 @@ def api_photo_add_tag(filename: str):
         return jsonify({"error": "Paramètre 'tag' requis"}), 400
 
     # Validation du tag
-    valid_tags = {"hero", "favori", "supprimer", "redater", "texte"}
+    valid_tags = {"hero", "favori", "supprimer", "redater", "texte", "pas_hero", "zoom", "recadrage"}
     if tag not in valid_tags:
         return jsonify({"error": f"Tag invalide: {tag}. Tags supportés: {', '.join(valid_tags)}"}), 400
 
