@@ -52,7 +52,7 @@ logger = logging.getLogger("preview_server")
 app = Flask(__name__, static_folder=None)
 
 # État global
-PHOTOS_DIR: Path = Path("/root/mael_onedrive")
+PHOTOS_DIR: Path = Path("/root/mael_2012_photos")
 OUTPUT_DIR: Path = PROJECT_DIR / "output"
 SCORING_REPORT_PATH: Path = OUTPUT_DIR / "scoring_report.json"
 PROJECT_DIR_OBJ: Path = PROJECT_DIR
@@ -346,7 +346,7 @@ def api_photo_info(filename: str):
 
 @app.route("/api/photo/<path:filename>/thumbnail")
 def api_photo_thumbnail(filename: str):
-    """Retourne une vignette JPEG de la photo (200px de large)."""
+    """Retourne une vignette JPEG de la photo (600px pour preview)."""
     try:
         photo_path = _safe_photo_path(filename)
     except ValueError:
@@ -357,7 +357,7 @@ def api_photo_thumbnail(filename: str):
     try:
         img = Image.open(photo_path)
         img = ImageOps.exif_transpose(img) or img
-        img.thumbnail((200, 200), Image.LANCZOS)
+        img.thumbnail((600, 600), Image.LANCZOS)
 
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
@@ -538,6 +538,12 @@ def api_regenerate_status():
 def index():
     """Sert l'interface principale."""
     return send_from_directory(PREVIEW_STATIC_DIR, "index.html")
+
+
+@app.route("/pages")
+def album_pages():
+    """Vue des pages maquettées avec templates."""
+    return send_from_directory(PREVIEW_STATIC_DIR, "album_pages.html")
 
 
 @app.route("/<path:filename>")
