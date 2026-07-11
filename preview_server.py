@@ -41,6 +41,10 @@ from album_generator.tag_manager import (
 )
 from album_generator.templates import load_templates, dispatch_album
 from album_generator.scoring import extract_exif_date
+from album_generator.tag_engine import get_effective_date
+
+# Extensions vidéo reconnues
+VIDEO_EXTENSIONS = frozenset({".mts", ".MTS", ".mp4", ".MP4", ".mov", ".MOV", ".avi", ".AVI"})
 
 # ── Configuration ─────────────────────────────────────────────────────
 logging.basicConfig(
@@ -52,7 +56,7 @@ logger = logging.getLogger("preview_server")
 app = Flask(__name__, static_folder=None)
 
 # État global
-PHOTOS_DIR: Path = Path("/root/mael_onedrive")
+PHOTOS_DIR: Path = Path("/root/mael_2012_photos")
 OUTPUT_DIR: Path = PROJECT_DIR / "output"
 SCORING_REPORT_PATH: Path = OUTPUT_DIR / "scoring_report.json"
 PROJECT_DIR_OBJ: Path = PROJECT_DIR
@@ -145,6 +149,15 @@ def scan_photos() -> List[Path]:
     return photos
 
 
+def scan_videos() -> List[Path]:
+    """Liste les fichiers vidéo dans le répertoire des photos."""
+    videos = []
+    for f in sorted(PHOTOS_DIR.iterdir()):
+        if f.suffix in VIDEO_EXTENSIONS and f.is_file():
+            videos.append(f)
+    return videos
+
+
 def get_photo_info(photo_path: Path) -> Dict[str, Any]:
     """Retourne les infos complètes d'une photo : tags, score, date EXIF."""
     tags = read_tags(photo_path)
@@ -196,14 +209,14 @@ def _build_tag_context() -> Dict[str, Dict]:
             # Filtrer les tags valides et booléens (ignorer redater/texte qui sont des str)
             tags = {}
             for k, v in raw_tags.items():
-                if k in ("hero", "favori", "supprimer"):
+                if k in ("hero", "favori", "supprimer", "pas_hero"):
                     if isinstance(v, bool):
                         tags[k] = v
                     elif isinstance(v, str) and v.lower() == "true":
                         tags[k] = True
                     elif isinstance(v, str) and v.lower() == "false":
                         tags[k] = False
-                elif k in ("redater", "texte"):
+                elif k in ("redater", "texte", "zoom", "recadrage"):
                     tags[k] = str(v) if v else ""
             if any(tags.values()):  # Ne garder que les photos qui ont au moins un tag actif
                 tag_context[str(photo_path.resolve())] = tags
@@ -218,12 +231,15 @@ def build_photo_scores_for_dispatch() -> Optional[List[Tuple[str, float, Dict]]]
     """Construit la liste `photo_scores` attendue par dispatch_album().
 
     Returns:
-        List de (path, score, details) triée par date EXIF,
+        List de (path, score, details) triée par date EXIF (avec support redater),
         ou None si pas de scores disponibles.
     """
     photos = scan_photos()
     if not photos:
         return None
+
+    # Construire le tag_context pour le support du tag redater
+    tag_context = _build_tag_context()
 
     scored_list = []
     for photo_path in photos:
@@ -236,10 +252,10 @@ def build_photo_scores_for_dispatch() -> Optional[List[Tuple[str, float, Dict]]]
     if not scored_list:
         return None
 
-    # Tri par date EXIF (comme dans generate.py)
+    # Tri par date effective (EXIF ou redater si tag présent)
     def exif_sort_key(item):
         path = item[0]
-        dt = extract_exif_date(Path(path))
+        dt = get_effective_date(Path(path), tag_context) if tag_context else extract_exif_date(Path(path))
         return dt.isoformat() if dt else ""
 
     scored_list.sort(key=exif_sort_key)
@@ -328,6 +344,24 @@ def api_preview():
             "photos": page_photos,
         })
 
+    # ── Pages vidéo T9 ──
+    # Ajouter une page T9 pour chaque vidéo trouvée dans le dossier photos
+    videos = scan_videos()
+    if videos:
+        logger.info("🎬 %d vidéos détectées — ajout pages T9", len(videos))
+        for vid in videos:
+            result_pages.append({
+                "page_num": len(result_pages) + 1,
+                "template_id": "T9",
+                "is_hero": False,
+                "photos": [{
+                    "filename": vid.name,
+                    "path": str(vid),
+                    "zone_id": "video",
+                }],
+                "is_video": True,
+            })
+
     return jsonify(result_pages)
 
 
@@ -346,7 +380,7 @@ def api_photo_info(filename: str):
 
 @app.route("/api/photo/<path:filename>/thumbnail")
 def api_photo_thumbnail(filename: str):
-    """Retourne une vignette JPEG de la photo (200px de large)."""
+    """Retourne une vignette JPEG de la photo (600px pour preview)."""
     try:
         photo_path = _safe_photo_path(filename)
     except ValueError:
@@ -357,7 +391,7 @@ def api_photo_thumbnail(filename: str):
     try:
         img = Image.open(photo_path)
         img = ImageOps.exif_transpose(img) or img
-        img.thumbnail((200, 200), Image.LANCZOS)
+        img.thumbnail((600, 600), Image.LANCZOS)
 
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
@@ -386,7 +420,7 @@ def api_photo_add_tag(filename: str):
         return jsonify({"error": "Paramètre 'tag' requis"}), 400
 
     # Validation du tag
-    valid_tags = {"hero", "favori", "supprimer", "redater", "texte"}
+    valid_tags = {"hero", "favori", "supprimer", "redater", "texte", "pas_hero", "zoom", "recadrage"}
     if tag not in valid_tags:
         return jsonify({"error": f"Tag invalide: {tag}. Tags supportés: {', '.join(valid_tags)}"}), 400
 
@@ -538,6 +572,12 @@ def api_regenerate_status():
 def index():
     """Sert l'interface principale."""
     return send_from_directory(PREVIEW_STATIC_DIR, "index.html")
+
+
+@app.route("/pages")
+def album_pages():
+    """Vue des pages maquettées avec templates."""
+    return send_from_directory(PREVIEW_STATIC_DIR, "album_pages.html")
 
 
 @app.route("/<path:filename>")

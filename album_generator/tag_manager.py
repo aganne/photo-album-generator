@@ -30,10 +30,10 @@ logger = logging.getLogger(__name__)
 ALBUM_TAGS_PREFIX = "album_tags:"
 """Préfixe qui identifie la ligne de nos tags dans le champ UserComment."""
 
-BOOLEAN_TAGS = frozenset({"supprimer", "hero", "favori"})
+BOOLEAN_TAGS = frozenset({"supprimer", "hero", "favori", "pas_hero"})
 """Tags de type booléen — stockés sans valeur si True, avec '=false' si False."""
 
-STRING_TAGS = frozenset({"redater", "texte"})
+STRING_TAGS = frozenset({"redater", "texte", "zoom", "recadrage"})
 """Tags de type chaîne — toujours stockés avec '=valeur'."""
 
 ALL_SUPPORTED_TAGS = BOOLEAN_TAGS | STRING_TAGS

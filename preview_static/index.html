@@ -1,142 +1,509 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prévisualisation Album Photo</title>
-  <link rel="stylesheet" href="/preview.css">
-</head>
+<head><meta charset=utf-8><title>Album Mael — Preview</title>
+<style>
+:root{--bg:#1a1a1a;--card:#222;--text:#ccc;--accent:#ff9800;--muted:#888}
+*{box-sizing:border-box}
+body{margin:0;font-family:Georgia,serif;background:var(--bg);color:var(--text)}
+#app{display:flex;height:100vh}
+/* Sidebar */
+#sidebar{width:280px;background:var(--card);border-right:1px solid #333;padding:16px;overflow-y:auto;flex-shrink:0;transition:width .3s}
+#sidebar.collapsed{width:0;padding:0;overflow:hidden}
+#sidebar h3{font-size:13px;color:var(--muted);margin:16px 0 8px;font-weight:400}
+#sidebar h3:first-child{margin-top:0}
+.search-input{width:100%;padding:8px 12px;border:1px solid #444;background:#111;color:#fff;border-radius:4px;font-size:12px}
+.filter-item{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;cursor:pointer}
+.filter-item input{margin:0}
+.tag-badge{font-size:11px;padding:1px 6px;border-radius:3px}
+.tag-hero{background:#ff980022;color:#ff9800}
+.tag-favori{background:#e91e6322;color:#e91e63}
+.tag-supprimer{background:#f4433622;color:#f44336}
+.tag-redater{background:#2196f322;color:#2196f3}
+.tag-texte{background:#4caf5022;color:#4caf50}
+.tag-pas-hero{background:#9c27b022;color:#9c27b0}
+.tagged-list{font-size:11px}
+.tagged-entry{padding:2px 0;cursor:pointer}
+.tagged-entry:hover{color:var(--accent)}
+/* Main */
+#main{flex:1;overflow-y:auto;padding:10px 20px}
+/* Toolbar */
+.toolbar{position:sticky;top:0;z-index:100;background:var(--bg);padding:8px 0;display:flex;align-items:center;gap:12px;font-size:13px;border-bottom:1px solid #333;margin-bottom:10px}
+.toolbar h1{font-size:16px;margin:0;font-weight:400}
+.toolbar button,.toolbar a{padding:6px 14px;border:1px solid #444;background:var(--card);color:var(--text);border-radius:4px;cursor:pointer;font-size:12px;text-decoration:none}
+.toolbar .primary{background:var(--accent);border-color:var(--accent);color:#000}
+/* Zoom */
+#zoomSlider{width:80px}
+/* Pages */
+.page{box-shadow:0 0 20px rgba(0,0,0,.3);margin:20px auto;position:relative;overflow:hidden;background:#fff}
+.page-inner{position:absolute;inset:8mm;padding:3mm;display:flex;flex-direction:column}
+.tpl-grid{flex:1;display:grid;gap:2mm}
+.tpl-cell{background-color:#eee;background-size:cover;background-position:center;cursor:pointer;min-width:0;min-height:0}
+.tpl-cell:hover{outline:2px solid var(--accent)}
+.tpl-cell.supprimee{opacity:.3;filter:grayscale(1)}
+.page-num{position:absolute;bottom:3mm;left:0;right:0;text-align:center;font-size:8px;color:#ccc}
+.photo-tag-badge{position:absolute;top:2px;right:2px;font-size:10px;background:#00000088;padding:2px 4px;border-radius:3px;line-height:1}
+.photo-thumb-wrapper{position:relative}
+/* Context menu */
+.ctx{position:fixed;background:#1a1a1a;border:1px solid #444;border-radius:6px;padding:4px 0;z-index:20000;min-width:180px;box-shadow:0 4px 12px rgba(0,0,0,.6);display:none}
+.ctx button{display:block;width:100%;padding:8px 16px;border:none;background:none;color:var(--text);text-align:left;cursor:pointer;font-size:12px}
+.ctx button:hover{background:#333;color:#fff}
+.ctx .sep{border-top:1px solid #333;margin:4px 0}
+.ctx .tag-active{color:var(--accent)}
+/* Dialog overlay */
+.dialog-overlay{position:fixed;inset:0;background:#000000aa;z-index:30000;display:none;align-items:center;justify-content:center}
+.dialog-overlay.show{display:flex}
+.dialog{background:var(--card);padding:20px;border-radius:8px;min-width:300px}
+.dialog input{width:100%;padding:8px;border:1px solid #444;background:#111;color:#fff;border-radius:4px;margin:8px 0}
+.dialog button{padding:6px 14px;margin:4px}
+/* Loading */
+#loading{text-align:center;padding:40px;color:var(--muted)}
+/* Toggle sidebar */
+#btnSidebar{font-size:16px;padding:6px 10px !important}
+</style></head>
 <body>
-  <!-- Header -->
-  <header id="header">
-    <div class="header-left">
-      <h1>📸 Prévisualisation Album</h1>
-      <span class="photo-count" id="photoCount"></span>
-    </div>
-    <div class="header-right">
-      <button id="btnSidebar" class="btn-icon" title="Filtres et recherche">☰</button>
-      <button id="btnRegenerate" class="btn-primary">🔄 Régénérer l'album</button>
-      <span id="regenerateStatus" class="status-badge hidden"></span>
-    </div>
-  </header>
-
-  <!-- Layout -->
-  <div id="layout">
-    <!-- Sidebar -->
-    <aside id="sidebar" class="sidebar-hidden">
-      <div class="sidebar-section">
-        <h3>🔍 Recherche</h3>
-        <input type="text" id="searchInput" placeholder="Nom du fichier..." class="search-input">
-      </div>
-
-      <div class="sidebar-section">
-        <h3>📌 Photos taggées</h3>
-        <div id="taggedList" class="tagged-list">
-          <p class="placeholder">Aucune photo taggée</p>
-        </div>
-      </div>
-
-      <div class="sidebar-section">
-        <h3>🏷️ Filtres</h3>
-        <div class="filter-list" id="filterList">
-          <label class="filter-item">
-            <input type="checkbox" data-tag="hero" checked>
-            <span class="tag-badge tag-hero">⭐ Hero</span>
-          </label>
-          <label class="filter-item">
-            <input type="checkbox" data-tag="favori" checked>
-            <span class="tag-badge tag-favori">❤️ Favori</span>
-          </label>
-          <label class="filter-item">
-            <input type="checkbox" data-tag="supprimer" checked>
-            <span class="tag-badge tag-supprimer">🗑️ Supprimer</span>
-          </label>
-          <label class="filter-item">
-            <input type="checkbox" data-tag="redater" checked>
-            <span class="tag-badge tag-redater">📅 Redater</span>
-          </label>
-          <label class="filter-item">
-            <input type="checkbox" data-tag="texte" checked>
-            <span class="tag-badge tag-texte">📝 Texte</span>
-          </label>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Main content -->
-    <main id="mainContent">
-      <div id="loadingIndicator" class="loading">Chargement de la prévisualisation...</div>
-      <div id="errorMessage" class="error hidden"></div>
-      <div id="pagesGrid" class="pages-grid"></div>
-    </main>
+<div id="app">
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="sidebar-section">
+    <h3>🔍 Recherche</h3>
+    <input type="text" id="searchInput" placeholder="Nom du fichier..." class="search-input">
   </div>
-
-  <!-- Context Menu -->
-  <div id="contextMenu" class="context-menu hidden">
-    <div class="context-menu-header">
-      <span id="contextPhotoName" class="context-photo-name"></span>
-    </div>
-    <div class="context-menu-items" id="contextMenuItems">
-      <div class="context-item" data-tag="hero" data-type="bool">
-        <span class="context-icon">⭐</span>
-        <span class="context-label">Forcer Héro</span>
-        <span class="context-checkmark hidden">✓</span>
-      </div>
-      <div class="context-item" data-tag="favori" data-type="bool">
-        <span class="context-icon">❤️</span>
-        <span class="context-label">Favori</span>
-        <span class="context-checkmark hidden">✓</span>
-      </div>
-      <div class="context-item" data-tag="supprimer" data-type="bool">
-        <span class="context-icon">🗑️</span>
-        <span class="context-label">Supprimer</span>
-        <span class="context-checkmark hidden">✓</span>
-      </div>
-      <div class="context-item" data-tag="redater" data-type="str">
-        <span class="context-icon">📅</span>
-        <span class="context-label">Redater...</span>
-        <span class="context-checkmark hidden">✓</span>
-      </div>
-      <div class="context-item" data-tag="texte" data-type="str">
-        <span class="context-icon">📝</span>
-        <span class="context-label">Légende...</span>
-        <span class="context-checkmark hidden">✓</span>
-      </div>
-      <div class="context-divider"></div>
-      <div class="context-item context-item-clear hidden" id="contextClearAll">
-        <span style="color: #e74c3c;">✕ Retirer tous les tags</span>
-      </div>
-      <div class="context-divider"></div>
-      <div class="context-item context-item-cancel" id="contextCancel">
-        <span>Annuler</span>
-      </div>
+  <div class="sidebar-section">
+    <h3>📌 Photos taggées</h3>
+    <div id="taggedList" class="tagged-list"><p class="placeholder" style="color:var(--muted)">Aucune photo taggée</p></div>
+  </div>
+  <div class="sidebar-section">
+    <h3>🏷️ Filtres</h3>
+    <div id="filterList">
+      <label class="filter-item"><input type="checkbox" data-tag="hero" checked><span class="tag-badge tag-hero">⭐ Hero</span></label>
+      <label class="filter-item"><input type="checkbox" data-tag="favori" checked><span class="tag-badge tag-favori">❤️ Favori</span></label>
+      <label class="filter-item"><input type="checkbox" data-tag="supprimer" checked><span class="tag-badge tag-supprimer">🗑️ Supprimer</span></label>
+      <label class="filter-item"><input type="checkbox" data-tag="redater" checked><span class="tag-badge tag-redater">📅 Redater</span></label>
+      <label class="filter-item"><input type="checkbox" data-tag="texte" checked><span class="tag-badge tag-texte">📝 Texte</span></label>
+      <label class="filter-item"><input type="checkbox" data-tag="pas_hero" checked><span class="tag-badge tag-pas-hero">🚫 Héro</span></label>
     </div>
   </div>
+</aside>
 
-  <!-- Date dialog -->
-  <div id="dateDialog" class="dialog-overlay hidden">
-    <div class="dialog-box">
-      <h3>📅 Changer la date</h3>
-      <input type="date" id="dateInput" class="dialog-input">
-      <div class="dialog-buttons">
-        <button id="dateConfirm" class="btn-primary">OK</button>
-        <button id="dateCancel" class="btn-secondary">Annuler</button>
-      </div>
+<!-- Main -->
+<div id="main">
+<div class="toolbar">
+  <button id="btnSidebar">☰</button>
+  <h1>📸 Album Mael</h1>
+  <span style="color:var(--muted)" id="pageCount"></span>
+  <span style="flex:1"></span>
+  <span style="font-size:11px;color:var(--muted)">Zoom:</span>
+  <input type="range" id="zoomSlider" min="20" max="100" value="60">
+  <span id="zoomVal" style="font-size:11px;color:var(--muted)">60%</span>
+  <button id="btnRefresh" onclick="init()">🔄 Rafraîchir</button>
+  <button id="btnPdf" class="primary" onclick="generatePdf()">📄 Générer PDF</button>
+  <a id="pdfDownload" style="display:none" class="primary" href="#">⬇️ Télécharger PDF</a>
+</div>
+<div id="loading">Chargement...</div>
+<div id="pages"></div>
+</div>
+</div>
+
+<!-- Context Menu -->
+<div class="ctx" id="ctxMenu">
+  <button data-tag="hero">⭐ Hero</button>
+  <button data-tag="favori">❤️ Favori</button>
+  <button data-tag="supprimer">🗑️ Supprimer</button>
+  <button data-tag="pas_hero">🚫 Bannir héro</button>
+  <div class="sep"></div>
+  <button data-tag="redater">📅 Redater</button>
+  <button data-tag="texte">📝 Texte</button>
+  <div class="sep"></div>
+  <div class="sep"></div>
+  <button onclick="showZoomDialog(curFile)">🔍 Zoom</button>
+  <button onclick="clearAllTags()">🧹 Retirer tous les tags</button>
+  <button onclick="hideCtx()">✕ Fermer</button>
+</div>
+
+<!-- Dialogs -->
+
+<div class="dialog-overlay" id="zoomDialog">
+  <div class="dialog" style="min-width:420px"><h3>🔍 Zoom & Recadrage</h3>
+    <div id="cropViewport" style="position:relative;width:380px;height:380px;margin:8px 0;overflow:hidden;background:#111;cursor:grab;user-select:none">
+      <img id="zoomPreview" style="position:absolute;top:0;left:0;max-width:none;max-height:none;pointer-events:none">
+      <div id="cropFrame" style="position:absolute;border:2px dashed #ff9800;box-shadow:0 0 0 9999px rgba(0,0,0,0.5);pointer-events:none;display:none"></div>
     </div>
-  </div>
+    <input type="range" id="zoomFactor" min="100" max="300" value="100" style="width:100%">
+    <span id="zoomFactorVal" style="font-size:11px;color:var(--muted)">100%</span>
+    <span style="font-size:11px;color:var(--muted);margin-left:16px">Cadre: </span>
+    <span id="cropInfo" style="font-size:11px;color:var(--accent)">—</span><br>
+    <button onclick="applyZoom()">Appliquer zoom</button>
+    <button onclick="applyCrop()" style="background:#ff9800;border-color:#ff9800;color:#000">✂️ Appliquer recadrage</button>
+    <button onclick="hideDialogs()">Annuler</button></div>
+</div>
+<div class="dialog-overlay" id="dateDialog">
+  <div class="dialog"><h3>📅 Redater</h3><input id="dateInput" type="date"><br>
+    <button onclick="doDateTag()">OK</button><button onclick="hideDialogs()">Annuler</button></div>
+</div>
+<div class="dialog-overlay" id="textDialog">
+  <div class="dialog"><h3>📝 Texte</h3><input id="textInput" placeholder="Légende..."><br>
+    <button onclick="doTextTag()">OK</button><button onclick="hideDialogs()">Annuler</button></div>
+</div>
 
-  <!-- Text dialog -->
-  <div id="textDialog" class="dialog-overlay hidden">
-    <div class="dialog-box">
-      <h3>📝 Ajouter une légende</h3>
-      <textarea id="textInput" class="dialog-textarea" placeholder="Votre légende..." rows="3"></textarea>
-      <div class="dialog-buttons">
-        <button id="textConfirm" class="btn-primary">OK</button>
-        <button id="textCancel" class="btn-secondary">Annuler</button>
-      </div>
-    </div>
-  </div>
+<script>
+// ── State ──
+let state={pages:[],photos:[],taggedPhotos:{},filters:{hero:true,favori:true,supprimer:true,redater:true,texte:true,pas_hero:true},searchQuery:'',currentTagTag:null};
+let curFile=null;
 
-  <script src="/preview.js"></script>
-</body>
-</html>
+// ── Template definitions (N1-N12) ──
+const TPL_DEFS = {
+  N1:{cols:4,rows:5,zones:[{c:0,r:0,w:2,h:2},{c:2,r:0,w:2,h:1},{c:2,r:1,w:2,h:2},{c:0,r:2,w:2,h:1},{c:0,r:3,w:4,h:2}]},
+  N2:{cols:2,rows:3,zones:[{c:0,r:0},{c:1,r:0},{c:0,r:1},{c:1,r:1},{c:0,r:2},{c:1,r:2}].map((z,i)=>({...z,w:1,h:1}))},
+  N3:{cols:2,rows:3,zones:[{c:0,r:0,w:2,h:2},{c:0,r:2,w:2,h:1}]},
+  N6:{cols:2,rows:2,zones:[{c:0,r:0},{c:1,r:0},{c:0,r:1},{c:1,r:1}].map((z,i)=>({...z,w:1,h:1}))},
+  N7:{cols:6,rows:3,zones:[{c:0,r:0,w:6,h:2},{c:0,r:2,w:2,h:1},{c:2,r:2,w:2,h:1},{c:4,r:2,w:2,h:1}]},
+  N9:{cols:4,rows:6,zones:[{c:0,r:0,w:2,h:2},{c:2,r:0,w:2,h:1},{c:2,r:1,w:2,h:1},{c:0,r:2,w:2,h:1},{c:2,r:2,w:2,h:2},{c:0,r:3,w:1,h:2},{c:1,r:3,w:1,h:1},{c:1,r:4,w:3,h:2},{c:0,r:5,w:1,h:1}]},
+  N10:{cols:4,rows:5,zones:[{c:0,r:0,w:2,h:1},{c:2,r:0,w:2,h:1},{c:0,r:1,w:1,h:2},{c:1,r:1,w:2,h:2},{c:3,r:1,w:1,h:2},{c:0,r:3,w:2,h:2},{c:2,r:3,w:2,h:2}]},
+  N11:{cols:3,rows:5,zones:[{c:0,r:0},{c:1,r:0},{c:2,r:0},{c:0,r:1,w:3,h:3},{c:0,r:4},{c:1,r:4},{c:2,r:4}].map(z=>({w:1,h:1,...z}))},
+  N12:{cols:3,rows:3,zones:Array(9).fill().map((_,i)=>({c:i%3,r:Math.floor(i/3),w:1,h:1}))},
+  T9:{cols:1,rows:1,zones:[{c:0,r:0,w:1,h:1}]}
+};
+
+// ── API ──
+async function api(url, opts={}){
+  let r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});
+  if(!r.ok){let e=await r.json().catch(()=>({error:r.statusText}));throw new Error(e.error||'HTTP '+r.status)}
+  return r.json();
+}
+
+// ── Init ──
+async function init(){
+  try{
+    let[preview,photos,tagged]=await Promise.all([api('/api/preview'),api('/api/photos'),api('/api/tagged-photos').catch(()=>({}))]);
+    state.pages=Array.isArray(preview)?preview:(preview.pages||[]);
+    state.photos=photos||[];
+    state.taggedPhotos=tagged||{};
+    document.getElementById('pageCount').textContent=state.pages.length+' pages · '+state.photos.length+' photos';
+    document.getElementById('loading').style.display='none';
+    renderPages();
+    renderTaggedList();
+  }catch(e){
+    document.getElementById('loading').innerHTML='<p style="color:var(--accent)">Erreur: '+e.message+'</p>';
+  }
+}
+
+// ── Render pages ──
+let ZOOM=60;
+function renderPages(){
+  let container=document.getElementById('pages');
+  let W=210*ZOOM/100, H=297*ZOOM/100; // mm → px at zoom%
+  container.innerHTML='';
+  state.pages.forEach((page,i)=>{
+    let tid=page.template_id||'N2';
+    let tpl=TPL_DEFS[tid]||TPL_DEFS.N2;
+    let div=document.createElement('div');
+    div.className='page';div.style.width=W+'mm';div.style.height=H+'mm';
+    let inner=document.createElement('div');inner.className='page-inner';
+    let grid=document.createElement('div');grid.className='tpl-grid';
+    grid.style.gridTemplateColumns='repeat('+tpl.cols+',1fr)';
+    grid.style.gridTemplateRows='repeat('+tpl.rows+',1fr)';
+
+    // Special rendering for video pages (T9)
+    if(page.is_video&&page.photos.length>0){
+      let vid=page.photos[0];
+      let vcell=document.createElement('div');
+      vcell.style.gridColumn='1/2';vcell.style.gridRow='1/2';
+      vcell.style.display='flex';vcell.style.alignItems='center';vcell.style.justifyContent='center';
+      vcell.style.background='#0d0d0d';vcell.style.color='#e8cfa0';
+      vcell.style.fontSize='14px';vcell.style.flexDirection='column';
+      vcell.innerHTML='<div style=\"font-size:48px;margin-bottom:12px\">🎬</div><div>Vidéo</div><div style=\"font-size:11px;color:#888;margin-top:4px\">'+vid.filename+'</div>';
+      grid.appendChild(vcell);
+      inner.appendChild(grid);
+      let num=document.createElement('div');num.className='page-num';
+      num.textContent='Page '+(i+1)+' · T9 🎬';
+      div.appendChild(inner);div.appendChild(num);
+      container.appendChild(div);
+      return;
+    }
+
+    page.photos.forEach((p,n)=>{
+      let zone=tpl.zones[n];if(!zone)return;
+      let pi=state.photos.find(ph=>ph.filename===p.filename)||{};
+      let tags=pi.tags||{};
+      
+      // Apply filters — only filter on tags that have corresponding filter checkboxes
+      if(state.searchQuery&&!p.filename.toLowerCase().includes(state.searchQuery))return;
+      let photoTagKeys=Object.keys(tags).filter(t=>tags[t]);
+      let filterablePhotoTags=photoTagKeys.filter(t=>t in state.filters);
+      let hasFilterableTags=filterablePhotoTags.length>0;
+      let activeFilters=Object.entries(state.filters).filter(([,c])=>c).map(([t])=>t);
+      if(hasFilterableTags&&activeFilters.length>0&&!activeFilters.some(t=>tags[t]))return;
+      
+      let wrapper=document.createElement('div');
+      wrapper.className='photo-thumb-wrapper';
+      wrapper.style.gridColumn=(zone.c+1)+'/'+(zone.c+1+zone.w);
+      wrapper.style.gridRow=(zone.r+1)+'/'+(zone.r+1+zone.h);
+      
+      let cell=document.createElement('div');
+      cell.className='tpl-cell';
+      if(tags.supprimer)cell.classList.add('supprimee');
+      cell.title=p.filename;
+      cell.dataset.filename=p.filename;
+      cell.style.width='100%';cell.style.height='100%';
+      cell.style.backgroundImage='url(/api/photo/'+encodeURIComponent(p.filename)+'/thumbnail)';
+      
+      // Apply zoom tag if present
+      if(tags.zoom){
+        let zv=parseFloat(tags.zoom);
+        if(!isNaN(zv))cell.style.backgroundSize=zv+'%';
+      }
+      // Apply recadrage tag if present (format: x,y,w,h in %)
+      if(tags.recadrage){
+        let parts=String(tags.recadrage).split(',').map(parseFloat);
+        if(parts.length===4&&parts.every(v=>!isNaN(v))){
+          // Convert recadrage % to background-position
+          // recadrage=x,y,w,h means: crop from (x%,y%) with size (w%,h%)
+          // For CSS: background-position centers on the crop center
+          let cx=parts[0]+parts[2]/2;
+          let cy=parts[1]+parts[3]/2;
+          cell.style.backgroundPosition=cx+'% '+cy+'%';
+        }
+      }
+      
+      // Tag badge
+      let activeTags=Object.keys(tags).filter(t=>tags[t]);
+      if(activeTags.length){
+        let badge=document.createElement('div');
+        badge.className='photo-tag-badge';
+        badge.textContent=activeTags.map(t=>({hero:'⭐',favori:'❤️',supprimer:'🗑️',redater:'📅',texte:'📝',pas_hero:'🚫',zoom:'🔍',recadrage:'✂️',pas_hero:'🚫',zoom:'🔍',recadrage:'✂️'}[t]||'')).join('');
+        wrapper.appendChild(badge);
+      }
+      
+      wrapper.appendChild(cell);
+      grid.appendChild(wrapper);
+    });
+    
+    inner.appendChild(grid);
+    let num=document.createElement('div');num.className='page-num';
+    num.textContent='Page '+(i+1)+' · '+tid+(page.is_hero?' ⭐':'');
+    div.appendChild(inner);div.appendChild(num);
+    container.appendChild(div);
+  });
+}
+
+function renderTaggedList(){
+  let c=document.getElementById('taggedList');
+  let entries=Object.entries(state.taggedPhotos);
+  if(!entries.length){c.innerHTML='<p style="color:var(--muted)">Aucune photo taggée</p>';return}
+  c.innerHTML='';
+  entries.forEach(([fn,tags])=>{
+    let active=Object.keys(tags).filter(t=>tags[t]);
+    let div=document.createElement('div');div.className='tagged-entry';
+    div.innerHTML='<span>'+fn+'</span> '+active.map(t=>'<span class="tag-badge tag-'+t+'">'+({hero:'⭐',favori:'❤️',supprimer:'🗑️',redater:'📅',texte:'📝',pas_hero:'🚫',zoom:'🔍',recadrage:'✂️'}[t]||'')+' '+t+'</span>').join(' ');
+    c.appendChild(div);
+  });
+}
+
+// ── Context menu ──
+document.addEventListener('click',e=>{
+  let cell=e.target.closest('.tpl-cell');
+  if(cell&&!e.target.closest('.ctx')){
+    e.preventDefault();
+    curFile=cell.dataset.filename;
+    let ctx=document.getElementById('ctxMenu');
+    ctx.style.display='block';ctx.style.left=e.clientX+'px';ctx.style.top=e.clientY+'px';
+    let pi=state.photos.find(p=>p.filename===curFile)||{};
+    let tags=pi.tags||{};
+    document.querySelectorAll('#ctxMenu button[data-tag]').forEach(b=>{
+      b.classList.toggle('tag-active',!!tags[b.dataset.tag])
+    });
+  }
+  if(!e.target.closest('.ctx')&&!e.target.closest('.tpl-cell'))hideCtx();
+});
+
+document.querySelectorAll('#ctxMenu button[data-tag]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    if(!curFile)return;
+    if(b.dataset.tag==='redater'){showDialogs('date');return}
+    if(b.dataset.tag==='texte'){showDialogs('text');return}
+    toggleTag(curFile,b.dataset.tag);
+  });
+});
+
+async function toggleTag(fn,tag){
+  let pi=state.photos.find(p=>p.filename===fn)||{};
+  let curVal=(pi.tags||{})[tag];
+  try{
+    let result;
+    if(curVal)result=await api('/api/photo/'+encodeURIComponent(fn)+'/tag/'+tag,{method:'DELETE'});
+    else result=await api('/api/photo/'+encodeURIComponent(fn)+'/tag',{method:'POST',body:JSON.stringify({tag,value:true})});
+    let idx=state.photos.findIndex(p=>p.filename===fn);
+    if(idx>=0)state.photos[idx].tags=result.tags||{};
+    hideCtx();renderPages();
+    state.taggedPhotos=await api('/api/tagged-photos').catch(()=>({}));
+    renderTaggedList();
+  }catch(e){alert('Erreur: '+e.message)}
+}
+
+async function clearAllTags(){
+  if(!curFile)return;
+  try{await api('/api/photo/'+encodeURIComponent(curFile)+'/tags',{method:'DELETE'});
+    let idx=state.photos.findIndex(p=>p.filename===curFile);if(idx>=0)state.photos[idx].tags={};
+    hideCtx();renderPages();
+    state.taggedPhotos=await api('/api/tagged-photos').catch(()=>({}));renderTaggedList();
+  }catch(e){alert('Erreur: '+e.message)}
+}
+
+function hideCtx(){document.getElementById('ctxMenu').style.display='none';curFile=null}
+function showDialogs(type){hideCtx();document.getElementById(type+'Dialog').classList.add('show');if(type==='date')document.getElementById('dateInput').focus()}
+function hideDialogs(){document.querySelectorAll('.dialog-overlay').forEach(d=>d.classList.remove('show'))}
+async function doDateTag(){let v=document.getElementById('dateInput').value;if(v&&curFile){await api('/api/photo/'+encodeURIComponent(curFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'redater',value:v})});hideDialogs();renderPages()}}
+let zoomFile=null;
+let cropState={x:0,y:0,w:50,h:50,dragging:false,startX:0,startY:0,origX:0,origY:0};
+
+function showZoomDialog(fn){
+  zoomFile=fn;hideCtx();
+  let d=document.getElementById('zoomDialog');d.classList.add('show');
+  let img=document.getElementById('zoomPreview');
+  img.onload=function(){
+    // Fit image into viewport while keeping aspect ratio
+    let vp=document.getElementById('cropViewport');
+    let vw=vp.clientWidth, vh=vp.clientHeight;
+    let nw=img.naturalWidth, nh=img.naturalHeight;
+    let scale=Math.min(vw/nw, vh/nh);
+    img.style.width=(nw*scale)+'px';img.style.height=(nh*scale)+'px';
+    img.style.top='0px';img.style.left='0px';
+    // Reset crop frame
+    cropState.x=0;cropState.y=0;cropState.w=50;cropState.h=50;
+    updateCropFrame();
+  };
+  img.src='/api/photo/'+encodeURIComponent(fn)+'/thumbnail';
+  document.getElementById('zoomFactor').value=100;
+  document.getElementById('zoomFactorVal').textContent='100%';
+  // Load existing tags
+  let pi=state.photos.find(p=>p.filename===fn)||{};
+  let tags=pi.tags||{};
+  if(tags.zoom){document.getElementById('zoomFactor').value=parseFloat(tags.zoom)||100;document.getElementById('zoomFactorVal').textContent=tags.zoom;}
+  if(tags.recadrage){
+    let parts=String(tags.recadrage).split(',').map(parseFloat);
+    if(parts.length===4){cropState.x=parts[0];cropState.y=parts[1];cropState.w=parts[2];cropState.h=parts[3];}
+  }
+}
+
+function updateCropFrame(){
+  let vp=document.getElementById('cropViewport'), cf=document.getElementById('cropFrame');
+  let img=document.getElementById('zoomPreview');
+  if(!img.naturalWidth)return;
+  let vw=vp.clientWidth, vh=vp.clientHeight;
+  let iw=parseFloat(img.style.width)||img.clientWidth;
+  let ih=parseFloat(img.style.height)||img.clientHeight;
+  // Crop frame position in viewport pixels
+  let cx=cropState.x/100*iw, cy=cropState.y/100*ih;
+  let cw=cropState.w/100*iw, ch=cropState.h/100*ih;
+  cf.style.display='block';
+  cf.style.left=cx+'px';cf.style.top=cy+'px';
+  cf.style.width=cw+'px';cf.style.height=ch+'px';
+  document.getElementById('cropInfo').textContent=Math.round(cropState.x)+','+Math.round(cropState.y)+' — '+Math.round(cropState.w)+'×'+Math.round(cropState.h)+'%';
+}
+
+// Zoom slider
+document.getElementById('zoomFactor').addEventListener('input',e=>{
+  let v=e.target.value;document.getElementById('zoomFactorVal').textContent=v+'%';
+  // Adjust crop frame size inversely to zoom: higher zoom = smaller frame
+  let baseW=100*100/v, baseH=100*100/v;
+  cropState.w=Math.min(100,Math.max(10,baseW));
+  cropState.h=Math.min(100,Math.max(10,baseH));
+  // Keep crop centered
+  cropState.x=Math.max(0,Math.min(100-cropState.w,(100-cropState.w)/2));
+  cropState.y=Math.max(0,Math.min(100-cropState.h,(100-cropState.h)/2));
+  updateCropFrame();
+});
+
+// Drag-to-crop
+(function(){
+  let vp=document.getElementById('cropViewport');
+  vp.addEventListener('mousedown',e=>{
+    if(e.target!==vp)return;
+    cropState.dragging=true;
+    cropState.startX=e.clientX;cropState.startY=e.clientY;
+    cropState.origX=cropState.x;cropState.origY=cropState.y;
+    vp.style.cursor='grabbing';
+  });
+  window.addEventListener('mousemove',e=>{
+    if(!cropState.dragging)return;
+    let vp=document.getElementById('cropViewport'), img=document.getElementById('zoomPreview');
+    let iw=parseFloat(img.style.width)||img.clientWidth;
+    let ih=parseFloat(img.style.height)||img.clientHeight;
+    let dx=(e.clientX-cropState.startX)/iw*100;
+    let dy=(e.clientY-cropState.startY)/ih*100;
+    cropState.x=Math.max(0,Math.min(100-cropState.w,cropState.origX+dx));
+    cropState.y=Math.max(0,Math.min(100-cropState.h,cropState.origY+dy));
+    updateCropFrame();
+  });
+  window.addEventListener('mouseup',()=>{
+    if(cropState.dragging){cropState.dragging=false;document.getElementById('cropViewport').style.cursor='grab';}
+  });
+})();
+
+async function applyZoom(){
+  let v=document.getElementById('zoomFactor').value;
+  if(zoomFile){await api('/api/photo/'+encodeURIComponent(zoomFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'zoom',value:v+'%'})})}
+  hideDialogs();renderPages();
+}
+
+async function applyCrop(){
+  if(!zoomFile)return;
+  let vp=document.getElementById('cropViewport'), img=document.getElementById('zoomPreview');
+  let iw=parseFloat(img.style.width)||img.clientWidth;
+  let ih=parseFloat(img.style.height)||img.clientHeight;
+  // Store recadrage as % values
+  let recadrage=Math.round(cropState.x)+','+Math.round(cropState.y)+','+Math.round(cropState.w)+','+Math.round(cropState.h);
+  await api('/api/photo/'+encodeURIComponent(zoomFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'recadrage',value:recadrage})});
+  let idx=state.photos.findIndex(p=>p.filename===zoomFile);
+  if(idx>=0){if(!state.photos[idx].tags)state.photos[idx].tags={};state.photos[idx].tags.recadrage=recadrage;}
+  hideDialogs();renderPages();
+}
+async function doTextTag(){let v=document.getElementById('textInput').value;if(v&&curFile){await api('/api/photo/'+encodeURIComponent(curFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'texte',value:v})});hideDialogs();renderPages()}}
+
+// ── Sidebar toggle ──
+document.getElementById('btnSidebar').addEventListener('click',()=>document.getElementById('sidebar').classList.toggle('collapsed'));
+
+// ── Zoom ──
+document.getElementById('zoomSlider').addEventListener('input',e=>{
+  ZOOM=parseInt(e.target.value);
+  document.getElementById('zoomVal').textContent=ZOOM+'%';
+  renderPages();
+});
+
+// ── Search ──
+document.getElementById('searchInput').addEventListener('input',e=>{
+  state.searchQuery=e.target.value.toLowerCase();renderPages();
+});
+
+// ── Filters ──
+document.querySelectorAll('#filterList input[type=checkbox]').forEach(cb=>{
+  cb.addEventListener('change',e=>{
+    state.filters[e.target.dataset.tag]=e.target.checked;renderPages();
+  });
+});
+
+// ── Generate PDF ──
+async function generatePdf(){
+  let btn=document.getElementById('btnPdf');
+  btn.textContent='⏳ Génération...';btn.disabled=true;
+  try{
+    let r=await api('/api/regenerate',{method:'POST'});
+    if(r.error){alert(r.error);btn.disabled=false;btn.textContent='📄 Générer PDF';return}
+    // Poll status
+    let poll=setInterval(async()=>{
+      let s=await api('/api/regenerate/status');
+      btn.textContent='⏳ '+s.progress;
+      if(!s.running){clearInterval(poll);
+        btn.textContent='📄 Générer PDF';btn.disabled=false;
+        let dl=document.getElementById('pdfDownload');
+        dl.href='/album-mael-video.pdf';dl.style.display='inline-block';
+        dl.textContent='⬇️ Télécharger PDF';
+      }
+    },2000);
+  }catch(e){alert('Erreur: '+e.message);btn.disabled=false;btn.textContent='📄 Générer PDF';}
+}
+
+// ── Start ──
+init();
+</script>
+</body></html>
