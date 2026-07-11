@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+from .tag_engine import is_pas_hero_tagged
+
 _TEMPLATES_FILE = Path(__file__).parent / "templates_N.json"
 
 
@@ -146,12 +148,22 @@ def dispatch_album(
             # Les photos taggées ``hero`` dans tag_context sont prioritaires
             # pour le slot hero de leur fenêtre. Elles bypassent le check
             # d'éligibilité (hero tag = l'utilisateur a décidé).
+            # Les photos taggées ``pas_hero`` sont EXCLUES des slots héro.
             hero_tagged = []
             if tag_context:
                 for ws in window_sorted:
                     abs_path = str(Path(ws[0]).resolve())
-                    if tag_context.get(abs_path, {}).get("hero") is True:
+                    tags = tag_context.get(abs_path, {})
+                    if tags.get("hero") is True and not tags.get("pas_hero"):
                         hero_tagged.append(ws[0])
+
+            # ── Exclure les pas_hero de la sélection héro ──
+            pas_hero_skip = set()
+            if tag_context:
+                for ws in window_sorted:
+                    abs_path = str(Path(ws[0]).resolve())
+                    if is_pas_hero_tagged(Path(ws[0]), tag_context):
+                        pas_hero_skip.add(ws[0])
 
             if hero_tagged:
                 # Si plusieurs hero taggés, prendre la meilleure score
@@ -160,7 +172,7 @@ def dispatch_album(
                     # Compléter avec les meilleures éligibles restantes
                     eligible = []
                     for ws in window_sorted:
-                        if ws[0] not in hero_candidates and _is_hero_eligible(ws[0]):
+                        if ws[0] not in hero_candidates and ws[0] not in pas_hero_skip and _is_hero_eligible(ws[0]):
                             eligible.append(ws[0])
                             if len(hero_candidates) + len(eligible) >= hn:
                                 break
@@ -170,20 +182,22 @@ def dispatch_album(
                         hero_candidates.extend(eligible[:remaining_needed])
                     else:
                         for ws in window_sorted:
-                            if ws[0] not in hero_candidates:
+                            if ws[0] not in hero_candidates and ws[0] not in pas_hero_skip:
                                 hero_candidates.append(ws[0])
                                 if len(hero_candidates) >= hn:
                                     break
             else:
                 hero_candidates = []
                 for ws in window_sorted:
-                    if _is_hero_eligible(ws[0]):
+                    if ws[0] not in pas_hero_skip and _is_hero_eligible(ws[0]):
                         hero_candidates.append(ws[0])
                         if len(hero_candidates) >= hn:
                             break
                 if len(hero_candidates) < hn:
                     # Pas assez d'éligibles → prendre les meilleures dispo
-                    hero_candidates = [ws[0] for ws in window_sorted[:hn]]
+                    hero_candidates = [ws[0] for ws in window_sorted if ws[0] not in pas_hero_skip][:hn]
+                    if len(hero_candidates) < hn:
+                        hero_candidates = [ws[0] for ws in window_sorted[:hn]]
             pages.append((hid, hero_candidates, True))
             hero_toggle += 1
             used = set(hero_candidates)

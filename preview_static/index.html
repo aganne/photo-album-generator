@@ -123,13 +123,18 @@ body{margin:0;font-family:Georgia,serif;background:var(--bg);color:var(--text)}
 <!-- Dialogs -->
 
 <div class="dialog-overlay" id="zoomDialog">
-  <div class="dialog"><h3>🔍 Ajuster le zoom</h3>
-    <div style="position:relative;width:300px;height:300px;margin:8px 0;overflow:hidden;background:#111;display:flex;align-items:center;justify-content:center">
-      <img id="zoomPreview" style="max-width:100%;max-height:100%;transform-origin:center;transition:transform .2s">
+  <div class="dialog" style="min-width:420px"><h3>🔍 Zoom & Recadrage</h3>
+    <div id="cropViewport" style="position:relative;width:380px;height:380px;margin:8px 0;overflow:hidden;background:#111;cursor:grab;user-select:none">
+      <img id="zoomPreview" style="position:absolute;top:0;left:0;max-width:none;max-height:none;pointer-events:none">
+      <div id="cropFrame" style="position:absolute;border:2px dashed #ff9800;box-shadow:0 0 0 9999px rgba(0,0,0,0.5);pointer-events:none;display:none"></div>
     </div>
-    <input type="range" id="zoomFactor" min="50" max="200" value="100" style="width:100%">
-    <span id="zoomFactorVal" style="font-size:11px;color:var(--muted)">100%</span><br>
-    <button onclick="applyZoom()">Appliquer</button><button onclick="hideDialogs()">Annuler</button></div>
+    <input type="range" id="zoomFactor" min="100" max="300" value="100" style="width:100%">
+    <span id="zoomFactorVal" style="font-size:11px;color:var(--muted)">100%</span>
+    <span style="font-size:11px;color:var(--muted);margin-left:16px">Cadre: </span>
+    <span id="cropInfo" style="font-size:11px;color:var(--accent)">—</span><br>
+    <button onclick="applyZoom()">Appliquer zoom</button>
+    <button onclick="applyCrop()" style="background:#ff9800;border-color:#ff9800;color:#000">✂️ Appliquer recadrage</button>
+    <button onclick="hideDialogs()">Annuler</button></div>
 </div>
 <div class="dialog-overlay" id="dateDialog">
   <div class="dialog"><h3>📅 Redater</h3><input id="dateInput" type="date"><br>
@@ -155,7 +160,8 @@ const TPL_DEFS = {
   N9:{cols:4,rows:6,zones:[{c:0,r:0,w:2,h:2},{c:2,r:0,w:2,h:1},{c:2,r:1,w:2,h:1},{c:0,r:2,w:2,h:1},{c:2,r:2,w:2,h:2},{c:0,r:3,w:1,h:2},{c:1,r:3,w:1,h:1},{c:1,r:4,w:3,h:2},{c:0,r:5,w:1,h:1}]},
   N10:{cols:4,rows:5,zones:[{c:0,r:0,w:2,h:1},{c:2,r:0,w:2,h:1},{c:0,r:1,w:1,h:2},{c:1,r:1,w:2,h:2},{c:3,r:1,w:1,h:2},{c:0,r:3,w:2,h:2},{c:2,r:3,w:2,h:2}]},
   N11:{cols:3,rows:5,zones:[{c:0,r:0},{c:1,r:0},{c:2,r:0},{c:0,r:1,w:3,h:3},{c:0,r:4},{c:1,r:4},{c:2,r:4}].map(z=>({w:1,h:1,...z}))},
-  N12:{cols:3,rows:3,zones:Array(9).fill().map((_,i)=>({c:i%3,r:Math.floor(i/3),w:1,h:1}))}
+  N12:{cols:3,rows:3,zones:Array(9).fill().map((_,i)=>({c:i%3,r:Math.floor(i/3),w:1,h:1}))},
+  T9:{cols:1,rows:1,zones:[{c:0,r:0,w:1,h:1}]}
 };
 
 // ── API ──
@@ -197,16 +203,36 @@ function renderPages(){
     grid.style.gridTemplateColumns='repeat('+tpl.cols+',1fr)';
     grid.style.gridTemplateRows='repeat('+tpl.rows+',1fr)';
 
+    // Special rendering for video pages (T9)
+    if(page.is_video&&page.photos.length>0){
+      let vid=page.photos[0];
+      let vcell=document.createElement('div');
+      vcell.style.gridColumn='1/2';vcell.style.gridRow='1/2';
+      vcell.style.display='flex';vcell.style.alignItems='center';vcell.style.justifyContent='center';
+      vcell.style.background='#0d0d0d';vcell.style.color='#e8cfa0';
+      vcell.style.fontSize='14px';vcell.style.flexDirection='column';
+      vcell.innerHTML='<div style=\"font-size:48px;margin-bottom:12px\">🎬</div><div>Vidéo</div><div style=\"font-size:11px;color:#888;margin-top:4px\">'+vid.filename+'</div>';
+      grid.appendChild(vcell);
+      inner.appendChild(grid);
+      let num=document.createElement('div');num.className='page-num';
+      num.textContent='Page '+(i+1)+' · T9 🎬';
+      div.appendChild(inner);div.appendChild(num);
+      container.appendChild(div);
+      return;
+    }
+
     page.photos.forEach((p,n)=>{
       let zone=tpl.zones[n];if(!zone)return;
       let pi=state.photos.find(ph=>ph.filename===p.filename)||{};
       let tags=pi.tags||{};
       
-      // Apply filters
+      // Apply filters — only filter on tags that have corresponding filter checkboxes
       if(state.searchQuery&&!p.filename.toLowerCase().includes(state.searchQuery))return;
-      let hasTags=Object.values(tags).some(v=>v);
+      let photoTagKeys=Object.keys(tags).filter(t=>tags[t]);
+      let filterablePhotoTags=photoTagKeys.filter(t=>t in state.filters);
+      let hasFilterableTags=filterablePhotoTags.length>0;
       let activeFilters=Object.entries(state.filters).filter(([,c])=>c).map(([t])=>t);
-      if(hasTags&&activeFilters.length>0&&!activeFilters.some(t=>tags[t]))return;
+      if(hasFilterableTags&&activeFilters.length>0&&!activeFilters.some(t=>tags[t]))return;
       
       let wrapper=document.createElement('div');
       wrapper.className='photo-thumb-wrapper';
@@ -221,12 +247,30 @@ function renderPages(){
       cell.style.width='100%';cell.style.height='100%';
       cell.style.backgroundImage='url(/api/photo/'+encodeURIComponent(p.filename)+'/thumbnail)';
       
+      // Apply zoom tag if present
+      if(tags.zoom){
+        let zv=parseFloat(tags.zoom);
+        if(!isNaN(zv))cell.style.backgroundSize=zv+'%';
+      }
+      // Apply recadrage tag if present (format: x,y,w,h in %)
+      if(tags.recadrage){
+        let parts=String(tags.recadrage).split(',').map(parseFloat);
+        if(parts.length===4&&parts.every(v=>!isNaN(v))){
+          // Convert recadrage % to background-position
+          // recadrage=x,y,w,h means: crop from (x%,y%) with size (w%,h%)
+          // For CSS: background-position centers on the crop center
+          let cx=parts[0]+parts[2]/2;
+          let cy=parts[1]+parts[3]/2;
+          cell.style.backgroundPosition=cx+'% '+cy+'%';
+        }
+      }
+      
       // Tag badge
       let activeTags=Object.keys(tags).filter(t=>tags[t]);
       if(activeTags.length){
         let badge=document.createElement('div');
         badge.className='photo-tag-badge';
-        badge.textContent=activeTags.map(t=>({hero:'⭐',favori:'❤️',supprimer:'🗑️',redater:'📅',texte:'📝'}[t]||'')).join('');
+        badge.textContent=activeTags.map(t=>({hero:'⭐',favori:'❤️',supprimer:'🗑️',redater:'📅',texte:'📝',pas_hero:'🚫',zoom:'🔍',recadrage:'✂️',pas_hero:'🚫',zoom:'🔍',recadrage:'✂️'}[t]||'')).join('');
         wrapper.appendChild(badge);
       }
       
@@ -250,7 +294,7 @@ function renderTaggedList(){
   entries.forEach(([fn,tags])=>{
     let active=Object.keys(tags).filter(t=>tags[t]);
     let div=document.createElement('div');div.className='tagged-entry';
-    div.innerHTML='<span>'+fn+'</span> '+active.map(t=>'<span class="tag-badge tag-'+t+'">'+({hero:'⭐',favori:'❤️',supprimer:'🗑️',redater:'📅',texte:'📝'}[t]||'')+' '+t+'</span>').join(' ');
+    div.innerHTML='<span>'+fn+'</span> '+active.map(t=>'<span class="tag-badge tag-'+t+'">'+({hero:'⭐',favori:'❤️',supprimer:'🗑️',redater:'📅',texte:'📝',pas_hero:'🚫',zoom:'🔍',recadrage:'✂️'}[t]||'')+' '+t+'</span>').join(' ');
     c.appendChild(div);
   });
 }
@@ -310,22 +354,108 @@ function showDialogs(type){hideCtx();document.getElementById(type+'Dialog').clas
 function hideDialogs(){document.querySelectorAll('.dialog-overlay').forEach(d=>d.classList.remove('show'))}
 async function doDateTag(){let v=document.getElementById('dateInput').value;if(v&&curFile){await api('/api/photo/'+encodeURIComponent(curFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'redater',value:v})});hideDialogs();renderPages()}}
 let zoomFile=null;
+let cropState={x:0,y:0,w:50,h:50,dragging:false,startX:0,startY:0,origX:0,origY:0};
+
 function showZoomDialog(fn){
   zoomFile=fn;hideCtx();
   let d=document.getElementById('zoomDialog');d.classList.add('show');
   let img=document.getElementById('zoomPreview');
+  img.onload=function(){
+    // Fit image into viewport while keeping aspect ratio
+    let vp=document.getElementById('cropViewport');
+    let vw=vp.clientWidth, vh=vp.clientHeight;
+    let nw=img.naturalWidth, nh=img.naturalHeight;
+    let scale=Math.min(vw/nw, vh/nh);
+    img.style.width=(nw*scale)+'px';img.style.height=(nh*scale)+'px';
+    img.style.top='0px';img.style.left='0px';
+    // Reset crop frame
+    cropState.x=0;cropState.y=0;cropState.w=50;cropState.h=50;
+    updateCropFrame();
+  };
   img.src='/api/photo/'+encodeURIComponent(fn)+'/thumbnail';
   document.getElementById('zoomFactor').value=100;
   document.getElementById('zoomFactorVal').textContent='100%';
+  // Load existing tags
+  let pi=state.photos.find(p=>p.filename===fn)||{};
+  let tags=pi.tags||{};
+  if(tags.zoom){document.getElementById('zoomFactor').value=parseFloat(tags.zoom)||100;document.getElementById('zoomFactorVal').textContent=tags.zoom;}
+  if(tags.recadrage){
+    let parts=String(tags.recadrage).split(',').map(parseFloat);
+    if(parts.length===4){cropState.x=parts[0];cropState.y=parts[1];cropState.w=parts[2];cropState.h=parts[3];}
+  }
 }
+
+function updateCropFrame(){
+  let vp=document.getElementById('cropViewport'), cf=document.getElementById('cropFrame');
+  let img=document.getElementById('zoomPreview');
+  if(!img.naturalWidth)return;
+  let vw=vp.clientWidth, vh=vp.clientHeight;
+  let iw=parseFloat(img.style.width)||img.clientWidth;
+  let ih=parseFloat(img.style.height)||img.clientHeight;
+  // Crop frame position in viewport pixels
+  let cx=cropState.x/100*iw, cy=cropState.y/100*ih;
+  let cw=cropState.w/100*iw, ch=cropState.h/100*ih;
+  cf.style.display='block';
+  cf.style.left=cx+'px';cf.style.top=cy+'px';
+  cf.style.width=cw+'px';cf.style.height=ch+'px';
+  document.getElementById('cropInfo').textContent=Math.round(cropState.x)+','+Math.round(cropState.y)+' — '+Math.round(cropState.w)+'×'+Math.round(cropState.h)+'%';
+}
+
+// Zoom slider
 document.getElementById('zoomFactor').addEventListener('input',e=>{
   let v=e.target.value;document.getElementById('zoomFactorVal').textContent=v+'%';
-  document.getElementById('zoomPreview').style.transform='scale('+(v/100)+')';
+  // Adjust crop frame size inversely to zoom: higher zoom = smaller frame
+  let baseW=100*100/v, baseH=100*100/v;
+  cropState.w=Math.min(100,Math.max(10,baseW));
+  cropState.h=Math.min(100,Math.max(10,baseH));
+  // Keep crop centered
+  cropState.x=Math.max(0,Math.min(100-cropState.w,(100-cropState.w)/2));
+  cropState.y=Math.max(0,Math.min(100-cropState.h,(100-cropState.h)/2));
+  updateCropFrame();
 });
+
+// Drag-to-crop
+(function(){
+  let vp=document.getElementById('cropViewport');
+  vp.addEventListener('mousedown',e=>{
+    if(e.target!==vp)return;
+    cropState.dragging=true;
+    cropState.startX=e.clientX;cropState.startY=e.clientY;
+    cropState.origX=cropState.x;cropState.origY=cropState.y;
+    vp.style.cursor='grabbing';
+  });
+  window.addEventListener('mousemove',e=>{
+    if(!cropState.dragging)return;
+    let vp=document.getElementById('cropViewport'), img=document.getElementById('zoomPreview');
+    let iw=parseFloat(img.style.width)||img.clientWidth;
+    let ih=parseFloat(img.style.height)||img.clientHeight;
+    let dx=(e.clientX-cropState.startX)/iw*100;
+    let dy=(e.clientY-cropState.startY)/ih*100;
+    cropState.x=Math.max(0,Math.min(100-cropState.w,cropState.origX+dx));
+    cropState.y=Math.max(0,Math.min(100-cropState.h,cropState.origY+dy));
+    updateCropFrame();
+  });
+  window.addEventListener('mouseup',()=>{
+    if(cropState.dragging){cropState.dragging=false;document.getElementById('cropViewport').style.cursor='grab';}
+  });
+})();
+
 async function applyZoom(){
-  // Save zoom preference as EXIF tag
   let v=document.getElementById('zoomFactor').value;
   if(zoomFile){await api('/api/photo/'+encodeURIComponent(zoomFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'zoom',value:v+'%'})})}
+  hideDialogs();renderPages();
+}
+
+async function applyCrop(){
+  if(!zoomFile)return;
+  let vp=document.getElementById('cropViewport'), img=document.getElementById('zoomPreview');
+  let iw=parseFloat(img.style.width)||img.clientWidth;
+  let ih=parseFloat(img.style.height)||img.clientHeight;
+  // Store recadrage as % values
+  let recadrage=Math.round(cropState.x)+','+Math.round(cropState.y)+','+Math.round(cropState.w)+','+Math.round(cropState.h);
+  await api('/api/photo/'+encodeURIComponent(zoomFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'recadrage',value:recadrage})});
+  let idx=state.photos.findIndex(p=>p.filename===zoomFile);
+  if(idx>=0){if(!state.photos[idx].tags)state.photos[idx].tags={};state.photos[idx].tags.recadrage=recadrage;}
   hideDialogs();renderPages();
 }
 async function doTextTag(){let v=document.getElementById('textInput').value;if(v&&curFile){await api('/api/photo/'+encodeURIComponent(curFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'texte',value:v})});hideDialogs();renderPages()}}

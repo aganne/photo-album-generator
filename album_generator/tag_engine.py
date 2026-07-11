@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # ── Constantes ───────────────────────────────────────────────────────
 
 HERO_TAG = "hero"
+PAS_HERO_TAG = "pas_hero"
 FAVORI_TAG = "favori"
 SUPPRIMER_TAG = "supprimer"
 REDATER_TAG = "redater"
@@ -35,7 +36,7 @@ FAVORI_BOOST = 1.20
 SCORE_CAP = 1.0
 
 SUPPORTED_TAGS = frozenset({
-    HERO_TAG, FAVORI_TAG, SUPPRIMER_TAG, REDATER_TAG, TEXTE_TAG,
+    HERO_TAG, PAS_HERO_TAG, FAVORI_TAG, SUPPRIMER_TAG, REDATER_TAG, TEXTE_TAG,
 })
 
 
@@ -175,6 +176,26 @@ def is_hero_tagged(
     abs_path = str(photo_path.resolve())
     tags = tag_context.get(abs_path, {})
     return bool(tags.get(HERO_TAG))
+
+
+def is_pas_hero_tagged(
+    photo_path: Path,
+    tag_context: dict[str, dict[str, Any]] | None = None,
+) -> bool:
+    """Vérifie si la photo a le tag ``pas_hero`` (exclusion des héros).
+
+    Args:
+        photo_path: Chemin de la photo.
+        tag_context: Contexte de tags (optionnel).
+
+    Returns:
+        True si le tag ``pas_hero`` est présent et vaut True.
+    """
+    if not tag_context:
+        return False
+    abs_path = str(photo_path.resolve())
+    tags = tag_context.get(abs_path, {})
+    return bool(tags.get(PAS_HERO_TAG))
 
 
 def get_score_boost(
