@@ -123,18 +123,32 @@ body{margin:0;font-family:Georgia,serif;background:var(--bg);color:var(--text)}
 <!-- Dialogs -->
 
 <div class="dialog-overlay" id="zoomDialog">
-  <div class="dialog" style="min-width:420px"><h3>🔍 Zoom & Recadrage</h3>
-    <div id="cropViewport" style="position:relative;width:380px;height:380px;margin:8px 0;overflow:hidden;background:#111;cursor:grab;user-select:none">
-      <img id="zoomPreview" style="position:absolute;top:0;left:0;max-width:none;max-height:none;pointer-events:none">
-      <div id="cropFrame" style="position:absolute;border:2px dashed #ff9800;box-shadow:0 0 0 9999px rgba(0,0,0,0.5);pointer-events:none;display:none"></div>
+  <div class="dialog" style="min-width:620px"><h3>🔍 Zoom & Recadrage</h3>
+    <div style="display:flex;gap:16px;align-items:flex-start">
+      <!-- Viewport with crop frame -->
+      <div style="position:relative;flex-shrink:0">
+        <div id="cropViewport" style="position:relative;width:380px;height:380px;overflow:hidden;background:#111;cursor:grab;user-select:none;border:1px solid #333">
+          <img id="zoomPreview" style="position:absolute;max-width:none;max-height:none;pointer-events:none">
+          <div id="cropFrame" style="position:absolute;border:2px solid #ff9800;box-shadow:0 0 0 9999px rgba(0,0,0,0.55);cursor:move;display:none"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <span style="font-size:11px;color:var(--muted)">Zoom:</span>
+          <input type="range" id="zoomFactor" min="50" max="400" value="100" style="flex:1">
+          <span id="zoomFactorVal" style="font-size:11px;color:var(--muted);min-width:40px">100%</span>
+        </div>
+      </div>
+      <!-- Preview thumbnail -->
+      <div style="flex-shrink:0;text-align:center">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Aperçu du cadrage</div>
+        <canvas id="cropPreview" width="160" height="160" style="border:1px solid #333;background:#111;max-width:160px;max-height:160px"></canvas>
+        <div id="cropInfo" style="font-size:11px;color:var(--accent);margin-top:4px">—</div>
+      </div>
     </div>
-    <input type="range" id="zoomFactor" min="100" max="300" value="100" style="width:100%">
-    <span id="zoomFactorVal" style="font-size:11px;color:var(--muted)">100%</span>
-    <span style="font-size:11px;color:var(--muted);margin-left:16px">Cadre: </span>
-    <span id="cropInfo" style="font-size:11px;color:var(--accent)">—</span><br>
-    <button onclick="applyZoom()">Appliquer zoom</button>
-    <button onclick="applyCrop()" style="background:#ff9800;border-color:#ff9800;color:#000">✂️ Appliquer recadrage</button>
-    <button onclick="hideDialogs()">Annuler</button></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button onclick="applyCrop()" style="background:#ff9800;border-color:#ff9800;color:#000">✂️ Appliquer recadrage</button>
+      <button onclick="resetCrop()">🔄 Réinitialiser</button>
+      <button onclick="hideDialogs()">Annuler</button>
+    </div></div>
 </div>
 <div class="dialog-overlay" id="dateDialog">
   <div class="dialog"><h3>📅 Redater</h3><input id="dateInput" type="date"><br>
@@ -148,7 +162,7 @@ body{margin:0;font-family:Georgia,serif;background:var(--bg);color:var(--text)}
 <script>
 // ── State ──
 let state={pages:[],photos:[],taggedPhotos:{},filters:{hero:true,favori:true,supprimer:true,redater:true,texte:true,pas_hero:true},searchQuery:'',currentTagTag:null};
-let curFile=null;
+let curFile=null,curPageIdx=null,curZoneIdx=null;
 
 // ── Template definitions (N1-N12) ──
 const TPL_DEFS = {
@@ -244,6 +258,7 @@ function renderPages(){
       if(tags.supprimer)cell.classList.add('supprimee');
       cell.title=p.filename;
       cell.dataset.filename=p.filename;
+      cell.dataset.pageIdx=i;cell.dataset.zoneIdx=n;
       cell.style.width='100%';cell.style.height='100%';
       cell.style.backgroundImage='url(/api/photo/'+encodeURIComponent(p.filename)+'/thumbnail)';
       
@@ -305,6 +320,7 @@ document.addEventListener('click',e=>{
   if(cell&&!e.target.closest('.ctx')){
     e.preventDefault();
     curFile=cell.dataset.filename;
+    curPageIdx=parseInt(cell.dataset.pageIdx);curZoneIdx=parseInt(cell.dataset.zoneIdx);
     let ctx=document.getElementById('ctxMenu');
     ctx.style.display='block';ctx.style.left=e.clientX+'px';ctx.style.top=e.clientY+'px';
     let pi=state.photos.find(p=>p.filename===curFile)||{};
@@ -349,113 +365,326 @@ async function clearAllTags(){
   }catch(e){alert('Erreur: '+e.message)}
 }
 
-function hideCtx(){document.getElementById('ctxMenu').style.display='none';curFile=null}
+function hideCtx(){document.getElementById('ctxMenu').style.display='none';curFile=null;curPageIdx=null;curZoneIdx=null}
 function showDialogs(type){hideCtx();document.getElementById(type+'Dialog').classList.add('show');if(type==='date')document.getElementById('dateInput').focus()}
 function hideDialogs(){document.querySelectorAll('.dialog-overlay').forEach(d=>d.classList.remove('show'))}
 async function doDateTag(){let v=document.getElementById('dateInput').value;if(v&&curFile){await api('/api/photo/'+encodeURIComponent(curFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'redater',value:v})});hideDialogs();renderPages()}}
+
+// ── Zoom & Recadrage ──
 let zoomFile=null;
-let cropState={x:0,y:0,w:50,h:50,dragging:false,startX:0,startY:0,origX:0,origY:0};
+// cropState stores crop in VIEWPORT pixels (frame position/size) and zoom level
+let cropState={
+  zoom:100,           // zoom level %
+  frameX:0,frameY:0,  // frame position in viewport px
+  frameW:200,frameH:200, // frame size in viewport px (proportional to cell ratio)
+  cellRatio:1.0,      // target aspect ratio (width/height)
+  imgNaturalW:0,imgNaturalH:0, // original image dimensions
+  imgLeft:0,imgTop:0, // image offset in viewport
+  imgDisplayW:0,imgDisplayH:0, // current image display size
+  dragging:false,dragMode:null, // 'frame' or 'pan'
+  dragStartX:0,dragStartY:0,
+  dragOrigFrameX:0,dragOrigFrameY:0,
+  dragOrigImgLeft:0,dragOrigImgTop:0,
+};
+
+function computeCellRatio(pageIdx,zoneIdx){
+  if(pageIdx==null||zoneIdx==null)return 1.0;
+  let page=state.pages[pageIdx];if(!page)return 1.0;
+  let tid=page.template_id||'N2';
+  let tpl=TPL_DEFS[tid];if(!tpl||!tpl.zones[zoneIdx])return 1.0;
+  let zone=tpl.zones[zoneIdx];
+  // cell aspect ratio on A4 page (210×297mm)
+  let pageW=210,pageH=297;
+  let cellW=(zone.w/tpl.cols)*pageW;
+  let cellH=(zone.h/tpl.rows)*pageH;
+  return cellW/cellH;
+}
 
 function showZoomDialog(fn){
-  zoomFile=fn;hideCtx();
+  zoomFile=fn;
+  let cellRatio=computeCellRatio(curPageIdx,curZoneIdx);
+  cropState.cellRatio=cellRatio;
+  cropState.zoom=100;
+  hideCtx();
   let d=document.getElementById('zoomDialog');d.classList.add('show');
   let img=document.getElementById('zoomPreview');
-  img.onload=function(){
-    // Fit image into viewport while keeping aspect ratio
-    let vp=document.getElementById('cropViewport');
-    let vw=vp.clientWidth, vh=vp.clientHeight;
-    let nw=img.naturalWidth, nh=img.naturalHeight;
-    let scale=Math.min(vw/nw, vh/nh);
-    img.style.width=(nw*scale)+'px';img.style.height=(nh*scale)+'px';
-    img.style.top='0px';img.style.left='0px';
-    // Reset crop frame
-    cropState.x=0;cropState.y=0;cropState.w=50;cropState.h=50;
-    updateCropFrame();
-  };
-  img.src='/api/photo/'+encodeURIComponent(fn)+'/thumbnail';
   document.getElementById('zoomFactor').value=100;
   document.getElementById('zoomFactorVal').textContent='100%';
-  // Load existing tags
+  // Load existing tags BEFORE image loads so we can apply them in onload
   let pi=state.photos.find(p=>p.filename===fn)||{};
   let tags=pi.tags||{};
-  if(tags.zoom){document.getElementById('zoomFactor').value=parseFloat(tags.zoom)||100;document.getElementById('zoomFactorVal').textContent=tags.zoom;}
+  let existingRecadrage=null;
   if(tags.recadrage){
     let parts=String(tags.recadrage).split(',').map(parseFloat);
-    if(parts.length===4){cropState.x=parts[0];cropState.y=parts[1];cropState.w=parts[2];cropState.h=parts[3];}
+    if(parts.length===4&&parts.every(v=>!isNaN(v)))existingRecadrage=parts;
   }
+  let existingZoom=null;
+  if(tags.zoom){let zv=parseFloat(tags.zoom);if(!isNaN(zv))existingZoom=zv;}
+  img.onload=function(){
+    cropState.imgNaturalW=img.naturalWidth;
+    cropState.imgNaturalH=img.naturalHeight;
+    let vp=document.getElementById('cropViewport');
+    let vw=vp.clientWidth,vh=vp.clientHeight;
+    let nw=cropState.imgNaturalW,nh=cropState.imgNaturalH;
+    let scale=Math.min(vw/nw,vh/nh);
+    let baseW=nw*scale,baseH=nh*scale;
+    if(existingRecadrage){
+      // Restore existing recadrage in viewport coordinates
+      let R=cropState.cellRatio;
+      // Use w% for frameW, derive frameH from cell ratio
+      cropState.frameW=existingRecadrage[2]/100*baseW;
+      cropState.frameH=cropState.frameW/R;
+      // Clamp frame size to viewport
+      if(cropState.frameW>vw*0.9){cropState.frameW=vw*0.9;cropState.frameH=cropState.frameW/R;}
+      if(cropState.frameH>vh*0.9){cropState.frameH=vh*0.9;cropState.frameW=cropState.frameH*R;}
+      // Position frame centered on the stored crop center
+      let cx=existingRecadrage[0]+existingRecadrage[2]/2;
+      let cy=existingRecadrage[1]+existingRecadrage[3]/2;
+      cropState.frameX=(cx/100*baseW)-cropState.frameW/2;
+      cropState.frameY=(cy/100*baseH)-cropState.frameH/2;
+      // Clamp position
+      cropState.frameX=Math.max(0,Math.min(vw-cropState.frameW,cropState.frameX));
+      cropState.frameY=Math.max(0,Math.min(vh-cropState.frameH,cropState.frameY));
+    }else{
+      initCropLayout();
+    }
+    if(existingZoom){
+      cropState.zoom=existingZoom;
+      document.getElementById('zoomFactor').value=existingZoom;
+      document.getElementById('zoomFactorVal').textContent=existingZoom+'%';
+    }
+    updateImageDisplay();
+    updateCropFrame();
+    updatePreview();
+  };
+  img.src='/api/photo/'+encodeURIComponent(fn)+'/thumbnail';
+}
+
+function initCropLayout(){
+  let vp=document.getElementById('cropViewport');
+  let vw=vp.clientWidth,vh=vp.clientHeight;
+  let nw=cropState.imgNaturalW,nh=cropState.imgNaturalH;
+  if(!nw||!nh)return;
+  let scale=Math.min(vw/nw,vh/nh);
+  let baseW=nw*scale,baseH=nh*scale;
+  // Fit frame proportionally inside viewport (70% of smaller dimension)
+  let maxFrameSize=Math.min(vw,vh)*0.7;
+  let R=cropState.cellRatio;
+  if(R>=1){ // landscape or square
+    cropState.frameW=maxFrameSize;
+    cropState.frameH=maxFrameSize/R;
+    if(cropState.frameH>vh*0.9){cropState.frameH=vh*0.9;cropState.frameW=cropState.frameH*R;}
+  }else{ // portrait
+    cropState.frameH=maxFrameSize;
+    cropState.frameW=maxFrameSize*R;
+    if(cropState.frameW>vw*0.9){cropState.frameW=vw*0.9;cropState.frameH=cropState.frameW/R;}
+  }
+  // Center frame in viewport (over image)
+  cropState.frameX=(vw-cropState.frameW)/2;
+  cropState.frameY=(vh-cropState.frameH)/2;
+  // Set base display size
+  cropState.imgDisplayW=baseW;
+  cropState.imgDisplayH=baseH;
+  // Center image in viewport at zoom=100
+  cropState.imgLeft=(vw-baseW)/2;
+  cropState.imgTop=(vh-baseH)/2;
+  document.getElementById('zoomFactor').value=100;
+  document.getElementById('zoomFactorVal').textContent='100%';
+  cropState.zoom=100;
+}
+
+function updateImageDisplay(){
+  let vp=document.getElementById('cropViewport');
+  let vw=vp.clientWidth,vh=vp.clientHeight;
+  let nw=cropState.imgNaturalW,nh=cropState.imgNaturalH;
+  if(!nw||!nh)return;
+  let scale=Math.min(vw/nw,vh/nh);
+  let baseW=nw*scale,baseH=nh*scale;
+  let z=cropState.zoom/100;
+  cropState.imgDisplayW=baseW*z;
+  cropState.imgDisplayH=baseH*z;
+  let img=document.getElementById('zoomPreview');
+  img.style.width=cropState.imgDisplayW+'px';
+  img.style.height=cropState.imgDisplayH+'px';
+  img.style.left=cropState.imgLeft+'px';
+  img.style.top=cropState.imgTop+'px';
 }
 
 function updateCropFrame(){
-  let vp=document.getElementById('cropViewport'), cf=document.getElementById('cropFrame');
+  let cf=document.getElementById('cropFrame');
   let img=document.getElementById('zoomPreview');
   if(!img.naturalWidth)return;
-  let vw=vp.clientWidth, vh=vp.clientHeight;
-  let iw=parseFloat(img.style.width)||img.clientWidth;
-  let ih=parseFloat(img.style.height)||img.clientHeight;
-  // Crop frame position in viewport pixels
-  let cx=cropState.x/100*iw, cy=cropState.y/100*ih;
-  let cw=cropState.w/100*iw, ch=cropState.h/100*ih;
   cf.style.display='block';
-  cf.style.left=cx+'px';cf.style.top=cy+'px';
-  cf.style.width=cw+'px';cf.style.height=ch+'px';
-  document.getElementById('cropInfo').textContent=Math.round(cropState.x)+','+Math.round(cropState.y)+' — '+Math.round(cropState.w)+'×'+Math.round(cropState.h)+'%';
+  cf.style.left=cropState.frameX+'px';
+  cf.style.top=cropState.frameY+'px';
+  cf.style.width=cropState.frameW+'px';
+  cf.style.height=cropState.frameH+'px';
+  // Update info text
+  let pct=getCropPercentages();
+  document.getElementById('cropInfo').textContent=
+    'x='+Math.round(pct.x)+' y='+Math.round(pct.y)+' — '+Math.round(pct.w)+'×'+Math.round(pct.h)+'%';
 }
 
-// Zoom slider
+function getCropPercentages(){
+  // Convert frame viewport coordinates to % of image display size
+  if(!cropState.imgDisplayW||!cropState.imgDisplayH)return{x:0,y:0,w:100,h:100};
+  let x=((cropState.frameX-cropState.imgLeft)/cropState.imgDisplayW)*100;
+  let y=((cropState.frameY-cropState.imgTop)/cropState.imgDisplayH)*100;
+  let w=(cropState.frameW/cropState.imgDisplayW)*100;
+  let h=(cropState.frameH/cropState.imgDisplayH)*100;
+  return{x:Math.max(0,Math.min(100,x)),y:Math.max(0,Math.min(100,y)),
+         w:Math.max(1,Math.min(100,w)),h:Math.max(1,Math.min(100,h))};
+}
+
+function updatePreview(){
+  let canvas=document.getElementById('cropPreview');
+  let img=document.getElementById('zoomPreview');
+  if(!img.naturalWidth||!img.complete)return;
+  let pct=getCropPercentages();
+  let ctx=canvas.getContext('2d');
+  // Clear
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Compute source rect in original image pixels
+  let nw=cropState.imgNaturalW,nh=cropState.imgNaturalH;
+  let sx=pct.x/100*nw,sy=pct.y/100*nh;
+  let sw=pct.w/100*nw,sh=pct.h/100*nh;
+  // Draw cropped portion scaled to canvas, maintaining cell aspect ratio
+  let cw=canvas.width,ch=canvas.height;
+  let R=cropState.cellRatio;
+  let drawW,drawH;
+  if(cw/ch>=R){drawH=ch;drawW=ch*R;}else{drawW=cw;drawH=cw/R;}
+  let dx=(cw-drawW)/2,dy=(ch-drawH)/2;
+  // Fill background
+  ctx.fillStyle='#111';ctx.fillRect(0,0,cw,ch);
+  ctx.drawImage(img,sx,sy,sw,sh,dx,dy,drawW,drawH);
+}
+
+// Zoom slider — scale image around frame center
 document.getElementById('zoomFactor').addEventListener('input',e=>{
-  let v=e.target.value;document.getElementById('zoomFactorVal').textContent=v+'%';
-  // Adjust crop frame size inversely to zoom: higher zoom = smaller frame
-  let baseW=100*100/v, baseH=100*100/v;
-  cropState.w=Math.min(100,Math.max(10,baseW));
-  cropState.h=Math.min(100,Math.max(10,baseH));
-  // Keep crop centered
-  cropState.x=Math.max(0,Math.min(100-cropState.w,(100-cropState.w)/2));
-  cropState.y=Math.max(0,Math.min(100-cropState.h,(100-cropState.h)/2));
+  let v=parseInt(e.target.value);
+  document.getElementById('zoomFactorVal').textContent=v+'%';
+  if(!cropState.imgNaturalW)return;
+  let vp=document.getElementById('cropViewport');
+  let vw=vp.clientWidth,vh=vp.clientHeight;
+  let nw=cropState.imgNaturalW,nh=cropState.imgNaturalH;
+  let scale=Math.min(vw/nw,vh/nh);
+  let baseW=nw*scale,baseH=nh*scale;
+  let oldZ=cropState.zoom/100;
+  let newZ=v/100;
+  // Frame center in viewport
+  let fcX=cropState.frameX+cropState.frameW/2;
+  let fcY=cropState.frameY+cropState.frameH/2;
+  // Frame center in image-display coordinates (old zoom)
+  let imgCX=(fcX-cropState.imgLeft)/oldZ;
+  let imgCY=(fcY-cropState.imgTop)/oldZ;
+  // Recompute image display with new zoom, keeping frame center aligned
+  cropState.zoom=v;
+  cropState.imgDisplayW=baseW*newZ;
+  cropState.imgDisplayH=baseH*newZ;
+  cropState.imgLeft=fcX-imgCX*newZ;
+  cropState.imgTop=fcY-imgCY*newZ;
+  updateImageDisplay();
   updateCropFrame();
+  updatePreview();
 });
 
-// Drag-to-crop
+// Mouse wheel zoom
+document.getElementById('cropViewport').addEventListener('wheel',e=>{
+  e.preventDefault();
+  let delta=e.deltaY>0?-10:10;
+  let newZoom=Math.max(50,Math.min(400,cropState.zoom+delta));
+  document.getElementById('zoomFactor').value=newZoom;
+  document.getElementById('zoomFactorVal').textContent=newZoom+'%';
+  if(!cropState.imgNaturalW)return;
+  let vp=document.getElementById('cropViewport');
+  let vw=vp.clientWidth,vh=vp.clientHeight;
+  let nw=cropState.imgNaturalW,nh=cropState.imgNaturalH;
+  let scale=Math.min(vw/nw,vh/nh);
+  let baseW=nw*scale,baseH=nh*scale;
+  let oldZ=cropState.zoom/100;
+  let newZ=newZoom/100;
+  let fcX=cropState.frameX+cropState.frameW/2;
+  let fcY=cropState.frameY+cropState.frameH/2;
+  let imgCX=(fcX-cropState.imgLeft)/oldZ;
+  let imgCY=(fcY-cropState.imgTop)/oldZ;
+  cropState.zoom=newZoom;
+  cropState.imgDisplayW=baseW*newZ;
+  cropState.imgDisplayH=baseH*newZ;
+  cropState.imgLeft=fcX-imgCX*newZ;
+  cropState.imgTop=fcY-imgCY*newZ;
+  updateImageDisplay();
+  updateCropFrame();
+  updatePreview();
+},{passive:false});
+
+// Drag handlers — frame drag on the frame, image pan on the viewport background
 (function(){
   let vp=document.getElementById('cropViewport');
   vp.addEventListener('mousedown',e=>{
-    if(e.target!==vp)return;
+    if(!cropState.imgNaturalW)return;
+    let cf=document.getElementById('cropFrame');
+    let rect=vp.getBoundingClientRect();
+    let mx=e.clientX-rect.left,my=e.clientY-rect.top;
+    // Check if click is inside the crop frame
+    if(mx>=cropState.frameX&&mx<=cropState.frameX+cropState.frameW&&
+       my>=cropState.frameY&&my<=cropState.frameY+cropState.frameH){
+      cropState.dragMode='frame';
+      cropState.dragOrigFrameX=cropState.frameX;
+      cropState.dragOrigFrameY=cropState.frameY;
+    }else{
+      cropState.dragMode='pan';
+      cropState.dragOrigImgLeft=cropState.imgLeft;
+      cropState.dragOrigImgTop=cropState.imgTop;
+    }
     cropState.dragging=true;
-    cropState.startX=e.clientX;cropState.startY=e.clientY;
-    cropState.origX=cropState.x;cropState.origY=cropState.y;
-    vp.style.cursor='grabbing';
+    cropState.dragStartX=e.clientX;cropState.dragStartY=e.clientY;
+    vp.style.cursor=cropState.dragMode==='frame'?'grabbing':'move';
+    e.preventDefault();
   });
   window.addEventListener('mousemove',e=>{
     if(!cropState.dragging)return;
-    let vp=document.getElementById('cropViewport'), img=document.getElementById('zoomPreview');
-    let iw=parseFloat(img.style.width)||img.clientWidth;
-    let ih=parseFloat(img.style.height)||img.clientHeight;
-    let dx=(e.clientX-cropState.startX)/iw*100;
-    let dy=(e.clientY-cropState.startY)/ih*100;
-    cropState.x=Math.max(0,Math.min(100-cropState.w,cropState.origX+dx));
-    cropState.y=Math.max(0,Math.min(100-cropState.h,cropState.origY+dy));
+    let vp=document.getElementById('cropViewport');
+    let vw=vp.clientWidth,vh=vp.clientHeight;
+    let dx=e.clientX-cropState.dragStartX;
+    let dy=e.clientY-cropState.dragStartY;
+    if(cropState.dragMode==='frame'){
+      // Move frame, clamp to viewport
+      cropState.frameX=Math.max(0,Math.min(vw-cropState.frameW,cropState.dragOrigFrameX+dx));
+      cropState.frameY=Math.max(0,Math.min(vh-cropState.frameH,cropState.dragOrigFrameY+dy));
+    }else{
+      // Pan image
+      cropState.imgLeft=cropState.dragOrigImgLeft+dx;
+      cropState.imgTop=cropState.dragOrigImgTop+dy;
+      updateImageDisplay();
+    }
     updateCropFrame();
+    updatePreview();
   });
   window.addEventListener('mouseup',()=>{
-    if(cropState.dragging){cropState.dragging=false;document.getElementById('cropViewport').style.cursor='grab';}
+    if(cropState.dragging){
+      cropState.dragging=false;cropState.dragMode=null;
+      document.getElementById('cropViewport').style.cursor='grab';
+    }
   });
 })();
 
-async function applyZoom(){
-  let v=document.getElementById('zoomFactor').value;
-  if(zoomFile){await api('/api/photo/'+encodeURIComponent(zoomFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'zoom',value:v+'%'})})}
-  hideDialogs();renderPages();
+function resetCrop(){
+  initCropLayout();
+  updateImageDisplay();
+  updateCropFrame();
+  updatePreview();
 }
 
 async function applyCrop(){
   if(!zoomFile)return;
-  let vp=document.getElementById('cropViewport'), img=document.getElementById('zoomPreview');
-  let iw=parseFloat(img.style.width)||img.clientWidth;
-  let ih=parseFloat(img.style.height)||img.clientHeight;
-  // Store recadrage as % values
-  let recadrage=Math.round(cropState.x)+','+Math.round(cropState.y)+','+Math.round(cropState.w)+','+Math.round(cropState.h);
+  let pct=getCropPercentages();
+  let recadrage=Math.round(pct.x)+','+Math.round(pct.y)+','+Math.round(pct.w)+','+Math.round(pct.h);
   await api('/api/photo/'+encodeURIComponent(zoomFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'recadrage',value:recadrage})});
   let idx=state.photos.findIndex(p=>p.filename===zoomFile);
   if(idx>=0){if(!state.photos[idx].tags)state.photos[idx].tags={};state.photos[idx].tags.recadrage=recadrage;}
+  // Also save zoom level
+  await api('/api/photo/'+encodeURIComponent(zoomFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'zoom',value:cropState.zoom+'%'})}).catch(()=>{});
+  if(idx>=0)state.photos[idx].tags.zoom=cropState.zoom+'%';
   hideDialogs();renderPages();
 }
 async function doTextTag(){let v=document.getElementById('textInput').value;if(v&&curFile){await api('/api/photo/'+encodeURIComponent(curFile)+'/tag',{method:'POST',body:JSON.stringify({tag:'texte',value:v})});hideDialogs();renderPages()}}

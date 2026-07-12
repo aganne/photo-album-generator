@@ -425,7 +425,7 @@ def api_photo_add_tag(filename: str):
         return jsonify({"error": f"Tag invalide: {tag}. Tags supportés: {', '.join(valid_tags)}"}), 400
 
     try:
-        if tag in ("redater", "texte"):
+        if tag in ("redater", "texte", "zoom", "recadrage"):
             if not isinstance(value, str) or not value.strip():
                 return jsonify({"error": f"Le tag '{tag}' requiert une valeur texte"}), 400
             if tag == "redater":
